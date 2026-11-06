@@ -1,5 +1,5 @@
 $(function(){const R=window.R,SL=5,W=1600,H=900;
-let S={},pcs={},L={mic:null,cam:null,camS:null,scr:[null,null,null],scrS:[null,null,null]},sSig=0,sChat=0,parts=[],spk=true,rec=null,chain=Promise.resolve(),uh='',shown=0,view='media',prevScr='',openU={},lk=null,sfuP=null,warned=0;
+let S={},pcs={},L={mic:null,cam:null,camS:null,scr:[null,null,null],scrS:[null,null,null]},sSig=0,sChat=0,parts=[],spk=true,rec=null,chain=Promise.resolve(),uh='',shown=0,view='media',prevScr='',openU={},lk=null,sfuP=null,warned=0,leaving=0;
 const api=(a,d)=>$.ajax({url:'api.php?action='+a,method:'POST',data:Object.assign({pid:S.pid},d),dataType:'json'}).fail(x=>toast((x.responseJSON||{}).error||t('err.net')));
 const sig=(to,type,data)=>api('signal',{to,type,data:JSON.stringify(data)});
 const seti=(sel,n,s=22)=>$(sel).find('i').html(ic(n,s));
@@ -31,9 +31,9 @@ function sfuStart(){
  lk.on(C.RoomEvent.TrackSubscribed,(track,pub,p)=>{sfuAttach(p.identity,pub&&pub.source,track)});
  lk.on(C.RoomEvent.TrackUnsubscribed,(track,pub,p)=>{sfuDetach(p.identity,pub&&pub.source,track)});
  lk.on(C.RoomEvent.LocalTrackUnpublished,(pub)=>{if(pub.source===C.Track.Source.ScreenShare){L.scr[0]=null;L.scrS[0]=null;$('#s'+S.pid+'-0').remove();state()}});
- lk.on(C.RoomEvent.Disconnected,()=>toast(t('err.sfu')));
+ lk.on(C.RoomEvent.Disconnected,()=>{if(!leaving)toast(t('err.sfu'))});
  if(C.RoomEvent.AudioPlaybackStatusChanged)lk.on(C.RoomEvent.AudioPlaybackStatusChanged,()=>{if(lk.canPlaybackAudio===false){blocked=true;$('#snd').removeClass('na')}});
- return lk.connect(S.lk.url,S.lk.token).then(()=>{sfuSweep();if(lk.startAudio)lk.startAudio().catch(()=>{blocked=true;$('#snd').removeClass('na')});uh='';ui()}).catch(()=>toast(t('err.sfu')));
+ return lk.connect(S.lk.url,S.lk.token).then(()=>{sfuSweep();if(lk.startAudio)lk.startAudio().catch(()=>{blocked=true;$('#snd').removeClass('na')});uh='';ui()}).catch(()=>{if(!leaving)toast(t('err.sfu'))});
 }
 function sfuSlot(source){const Src=LivekitClient.Track.Source;if(source===Src.Microphone||source==='microphone')return 'mic';if(source===Src.Camera||source==='camera')return 'cam';if(source===Src.ScreenShare||source==='screen_share')return 'scr';return ''}
 function sfuBox(id){return pcs[id]||(pcs[id]={pc:{close(){}},rs:[],snd:[],q:[],au:null,st:'connected',ct:'sfu'})}
@@ -136,7 +136,7 @@ function stopScr(k){const tr=L.scr[k];if(S.mode==='sfu'){if(tr)tr.onended=null;L
 $('#bScr').click(()=>{if(L.scr[0])return stopScr(0);if(!(+S.me.mgr||+S.me.can_screen))return toast(t('err.noscr'));addScr()});
 $('#bSpk').click(function(){spk=!spk;Object.values(pcs).forEach(o=>o.au&&(o.au.muted=!spk));$(this).toggleClass('on',spk);seti(this,spk?'spk':'spkoff')});
 $('#bLink').click(()=>linkModal(S.room.link));
-$('#bLeave').click(()=>{rec&&rec.mr.stop();if(lk)lk.disconnect();Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')});
+$('#bLeave').click(()=>{leaving=1;rec&&rec.mr.stop();if(lk)try{lk.disconnect()}catch(e){}Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')});
 addEventListener('pagehide',()=>{if(S.pid&&navigator.sendBeacon){const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)}});
 const cv=$('#cv')[0],cx=cv.getContext('2d');let objs=[],gotFull=0,tool='pen',col='#111827',sz=6,cur=null,seq=0;
 const canB=()=>+S.me.mgr||+S.me.can_board,SHAPE=['line','arrow','rect','ell'];

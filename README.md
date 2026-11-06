@@ -15,10 +15,10 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 
 ## Install
 
-Copy the project onto the server, open that folder, and run:
+On the server, run this. It downloads the release, then installs:
 
 ```bash
-sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
+wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.3 && tar -xzf didar.tar.gz && cd didar-1.0.3 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
 ```
 
 Put your own admin username and password in that command. The password must be at least 4 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
