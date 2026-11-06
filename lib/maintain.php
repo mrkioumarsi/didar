@@ -490,108 +490,25 @@ function ssl_renew(){
  }
  out(['ok'=>1]);
 }
-function rec_mp4_ok($fp){
- $h=@file_get_contents($fp,false,null,0,12);
- return is_string($h)&&strlen($h)>=8&&substr($h,4,4)==='ftyp';
-}
-function rec_ffmpeg($bin,$src,$tmp){
- $null=DIRECTORY_SEPARATOR==='\\'?'NUL':'/dev/null';
- $base=[$bin,'-y','-fflags','+genpts','-i',$src,'-map','0:v:0','-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-pix_fmt','yuv420p','-preset','veryfast','-crf','23','-movflags','+faststart'];
- foreach([array_merge($base,['-map','0:a:0','-c:a','aac','-b:a','128k',$tmp]),array_merge($base,['-an',$tmp])] as $cmd){
-  if(is_file($tmp))@unlink($tmp);
-  $proc=@proc_open($cmd,[0=>['file',$null,'r'],1=>['file',$null,'w'],2=>['file',$null,'w']],$pipes);
-  if(!is_resource($proc)) continue;
-  $code=proc_close($proc);
-  clearstatcache(true,$tmp);
-  if($code===0&&is_file($tmp)&&filesize($tmp)>32&&rec_mp4_ok($tmp)) return true;
-  if(is_file($tmp))@unlink($tmp);
- }
- return false;
-}
 function rec_send($id,$dl){
+ if($dl){http_response_code(403);die(t('err.forbidden'));}
  $r=q("SELECT * FROM recordings WHERE id=?",[$id])->fetch();
  if(!$r||!room_access((int)$r['room_id'])){http_response_code(403);die(t('err.forbidden'));}
  $fn=basename($r['file']);
  if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)){http_response_code(403);die(t('err.forbidden'));}
  $fp=dirname(__DIR__).'/storage/'.$fn;
- if(!is_file($fp)){http_response_code(404);die(t('err.nofile'));}
- if(strtolower(pathinfo($fn,PATHINFO_EXTENSION))==='webm'){
-  $lh=@fopen($fp.'.lock','c');
-  if($lh&&flock($lh,LOCK_EX)){
-   $now=q("SELECT file FROM recordings WHERE id=?",[$id])->fetchColumn();
-   if(is_string($now)&&strtolower(pathinfo((string)$now,PATHINFO_EXTENSION))==='webm') rec_finish_file((int)$r['id'],(int)$r['room_id']);
-   flock($lh,LOCK_UN);fclose($lh);@unlink($fp.'.lock');
-  }elseif($lh) fclose($lh);
-  $r=q("SELECT * FROM recordings WHERE id=?",[$id])->fetch();
-  if(!$r){http_response_code(404);die(t('err.nofile'));}
-  $fn=basename($r['file']);
-  if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)){http_response_code(403);die(t('err.forbidden'));}
-  $fp=dirname(__DIR__).'/storage/'.$fn;
-  if(!is_file($fp)){http_response_code(404);die(t('err.nofile'));}
- }
- $size=filesize($fp);
- if($size<1){http_response_code(404);die(t('err.nofile'));}
- $ext=strtolower(pathinfo($fp,PATHINFO_EXTENSION));
+ if(!is_file($fp)||filesize($fp)<1){http_response_code(404);die(t('err.nofile'));}
  while(ob_get_level()) @ob_end_clean();
  @ini_set('zlib.output_compression','0');
- header('Content-Type: '.($ext==='mp4'?'video/mp4':'video/webm'));
- header('Accept-Ranges: bytes');
- header('X-Content-Type-Options: nosniff');
+ $ext=strtolower(pathinfo($fp,PATHINFO_EXTENSION));
  header_remove('Pragma');
  header_remove('Expires');
  header_remove('Cache-Control');
+ header('Content-Type: '.($ext==='mp4'?'video/mp4':'video/webm'));
+ header('Content-Length: '.filesize($fp));
+ header('Content-Disposition: inline; filename="'.$fn.'"');
+ header('X-Content-Type-Options: nosniff');
  header('Cache-Control: private, max-age=86400');
- header('Content-Disposition: '.($dl?'attachment':'inline').'; filename="'.$fn.'"');
- $start=0;$end=$size-1;
- if(isset($_SERVER['HTTP_RANGE'])&&preg_match('/bytes=(\d*)-(\d*)/',$_SERVER['HTTP_RANGE'],$m)){
-  if($m[1]===''){$tail=(int)$m[2];if($tail<1)$tail=$size;$start=max(0,$size-$tail);}
-  else{$start=(int)$m[1];$end=$m[2]===''?$size-1:(int)$m[2];}
-  if($start>$end||$start>=$size){header('Content-Range: bytes */'.$size);http_response_code(416);exit;}
-  if($end>=$size)$end=$size-1;
-  header('Content-Range: bytes '.$start.'-'.$end.'/'.$size);
-  http_response_code(206);
- }
- $len=$end-$start+1;
- header('Content-Length: '.$len);
- if(($_SERVER['REQUEST_METHOD']??'')==='HEAD') exit;
- $fh=fopen($fp,'rb');
- if(!$fh){http_response_code(404);die(t('err.nofile'));}
- fseek($fh,$start);
- $left=$len;
- while($left>0&&!feof($fh)){
-  $chunk=fread($fh,min(1048576,$left));
-  if($chunk===false||$chunk==='') break;
-  echo $chunk;
-  $left-=strlen($chunk);
-  if(connection_aborted()) break;
- }
- fclose($fh);
+ readfile($fp);
  exit;
-}
-function rec_finish_file($id,$room){
- @set_time_limit(0);
- $dir=dirname(__DIR__).'/storage';
- foreach(glob($dir.'/rec_*.part')?:[] as $old){
-  $bn=basename($old);
-  if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4\.part$/',$bn)&&is_file($old)&&filemtime($old)<time()-86400) @unlink($old);
- }
- $r=q("SELECT * FROM recordings WHERE id=? AND room_id=?",[$id,$room])->fetch();
- if(!$r) return false;
- $fn=basename($r['file']);
- if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)) return false;
- $src=$dir.'/'.$fn;
- if(!is_file($src)||filesize($src)<32){if(is_file($src))@unlink($src);q("DELETE FROM recordings WHERE id=? AND room_id=?",[$id,$room]);return false;}
- $bin='';
- foreach(['/usr/bin/ffmpeg','/usr/local/bin/ffmpeg'] as $b) if(is_executable($b)){$bin=$b;break;}
- if($bin===''||!didar_fn('proc_open')) return true;
- $dst='rec_'.(int)$r['room_id'].'_'.time().'_'.bin2hex(random_bytes(8)).'.mp4';
- if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4$/',$dst)) return true;
- $tmp=$dir.'/'.$dst.'.part';
- if(!rec_ffmpeg($bin,$src,$tmp)) return true;
- $final=$dir.'/'.$dst;
- if(!@rename($tmp,$final)){@unlink($tmp);return true;}
- if($final!==$src) @unlink($src);
- clearstatcache(true,$final);
- q("UPDATE recordings SET file=?,size=? WHERE id=?",[$dst,(int)filesize($final),$r['id']]);
- return true;
 }
