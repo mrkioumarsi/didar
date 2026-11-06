@@ -102,7 +102,13 @@ if [ -n "$PUB" ] && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then EXT="${PUB}/${
 if [ -n "$EXT" ]; then EXTLINE="external-ip=${EXT}"; fi
 install -d /var/www/certbot /etc/nginx/sites-available /etc/nginx/sites-enabled
 rm -f /etc/nginx/sites-enabled/default
-ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp
+SSH_PORTS="$(ss -H -lntp 2>/dev/null | awk 'index($0,"sshd"){n=split($4,a,":"); p=a[n]; if(p ~ /^[0-9]+$/) print p}' | sort -u || true)"
+if [ -z "$SSH_PORTS" ] && [ -x /usr/sbin/sshd ]; then SSH_PORTS="$(/usr/sbin/sshd -T 2>/dev/null | awk 'tolower($1)=="port" && $2 ~ /^[0-9]+$/ {print $2}' | sort -u || true)"; fi
+if [ -z "$SSH_PORTS" ]; then SSH_PORTS=22; fi
+for p in $SSH_PORTS; do
+ case "$p" in ''|*[!0-9]*) continue;; esac
+ if [ "$p" -ge 1 ] && [ "$p" -le 65535 ]; then ufw allow "${p}/tcp" >/dev/null 2>&1 || true; fi
+done
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable >/dev/null 2>&1 || true
