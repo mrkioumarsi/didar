@@ -4,6 +4,11 @@ if(isset($_GET['lang'])){
  $c=lang_code($_GET['lang']);
  if($c){lang_cookie($c);header('Location: install.php');exit;}
 }
+if(!lang_code($_COOKIE['dlang']??'')){
+ $LANG='en';
+ $LANG_META=lang_list()['en']??['name'=>'English','dir'=>'ltr','digits'=>''];
+ $T=lang_strings('en');
+}
 $locked=is_file(__DIR__.'/storage/installed.lock');
 $done=isset($_GET['done']);
 $langs=lang_list();
@@ -40,7 +45,7 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
   $an=trim((string)$in('admin_name'));
   $ap=(string)$in('admin_pass','');
   $brand=trim((string)$in('brand','دیدار'));
-  $lang=lang_code($in('lang'))?:'fa';
+  $lang=lang_code($in('lang'))?:'en';
   $tz=trim((string)$in('tz','Asia/Tehran'));
   $cal=$in('cal')==='gregorian'?'gregorian':'jalali';
   if(!in_array($tz,timezone_identifiers_list(),true))$tz='Asia/Tehran';
@@ -56,7 +61,7 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
     $raw=file_get_contents(__DIR__.'/schema.sql');
     foreach(array_filter(array_map('trim',explode(';',$raw))) as $sql){if($sql!=='')$pdo->exec($sql);}
     $ins=$pdo->prepare('INSERT IGNORE INTO settings(k,v) VALUES(?,?)');
-    foreach(['calendar'=>'jalali','timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'fa','quality'=>'mid','brand'=>$brand,'domain'=>''] as $k=>$v)$ins->execute([$k,$v]);
+    foreach(['calendar'=>'jalali','timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'en','quality'=>'mid','brand'=>$brand,'domain'=>''] as $k=>$v)$ins->execute([$k,$v]);
     if(!empty($C['seed'])&&is_array($C['seed'])){
      $rep=$pdo->prepare('REPLACE INTO settings(k,v) VALUES(?,?)');
      foreach($C['seed'] as $k=>$v){
