@@ -13,7 +13,7 @@ const doLogin=()=>post('login',{username:$('#lu').val(),password:$('#lp').val(),
 $('#lb').click(doLogin);$('#lp,#lu').keydown(e=>{if(e.key=='Enter')doLogin()});
 $('#llang').change(function(){post('lang_pick',{lang:this.value}).done(()=>location.reload())});
 $('#lo').click(()=>post('logout').done(()=>location.reload()));
-$('.seg button').click(function(){const tname=$(this).data('t');if(!tname)return;$('.seg button').removeClass('act');$(this).addClass('act');$('.pane0').hide();$('#'+tname).show();tab=tname;$('#fab').toggle((tname=='rooms'||tname=='users')&&isAd()).attr('title',tname=='users'?t('rooms.adduser'):t('rooms.new'));if(tname=='users')users();monKick()});
+$('.seg button').click(function(){const tname=$(this).data('t');if(!tname)return;$('.seg button').removeClass('act');$(this).addClass('act');$('.pane0').hide();$('#'+tname).show();tab=tname;$('#fab').toggle((tname=='rooms'||tname=='users')&&isAd()).attr('title',tname=='users'?t('rooms.adduser'):t('rooms.new'));if(tname=='users')users();if(tname==='set')updCheck(0);monKick()});
 $('#fab').click(()=>tab=='users'?addUser():createRoom());
 $('#un').click(profile);
 $('#sstd').click(()=>$('#sst').val('stun:stun.l.google.com:19302'));
@@ -143,4 +143,14 @@ function monOnce(){$.post('api.php?action=monitor',{},null,'json').done(r=>{
  $('#monnote').text(note);
 })}
 function monKick(){clearInterval(monT);if(tab==='set'&&isAd()){monOnce();monT=setInterval(monOnce,4000)}}
+function updNote(r){
+ const el=$('#updnote');
+ if(!r||!r.ok){$('#updgo').prop('disabled',true);el.text(t('upd.net'));return}
+ if(r.newer){el.text(t('upd.now',{cur:locn(r.cur),latest:locn(r.latest)})+(r.can?'':' '+t('upd.perm')));$('#updgo').prop('disabled',!r.can)}
+ else{el.text(t('upd.same',{cur:locn(r.cur)}));$('#updgo').prop('disabled',true)}
+}
+function updCheck(force){if(!isAd())return;post('update_check',{force:force?1:0}).done(updNote)}
+$('#updchk').click(()=>updCheck(1));
+$('#updgo').click(function(){if(!confirm(t('upd.confirm')))return;const b=$(this).prop('disabled',true);post('update_apply',{}).done(()=>{toast(t('upd.done'));setTimeout(()=>location.reload(),1200)}).always(()=>b.prop('disabled',false))});
+$('#sbak').click(function(){const b=$(this).prop('disabled',true);$.ajax({url:'api.php?action=backup',method:'POST',xhrFields:{responseType:'blob'}}).done(function(blob,s,xhr){const ct=xhr.getResponseHeader('Content-Type')||'';if(ct.indexOf('json')>=0){toast(t('bak.fail'));return}const a=document.createElement('a');const name=(/filename="([^"]+)"/.exec(xhr.getResponseHeader('Content-Disposition')||'')||[])[1]||'didar-backup.sql';a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}).fail(()=>toast(t('bak.fail'))).always(()=>b.prop('disabled',false))});
 init()});

@@ -103,6 +103,13 @@ try{
   if(!mon_node_ok()){http_response_code(404);exit;}
   out(mon_machine());
  case 'monitor':need_admin();out(mon_snapshot());
+ case 'update_check':need_admin();out(update_info(!empty($P['force'])));
+ case 'update_apply':
+  need_admin();
+  $r=update_apply();
+  if(empty($r['ok'])) fail(t(($r['error']??'')==='perm'?'upd.perm':(($r['error']??'')==='net'?'upd.net':'upd.fail')));
+  out($r);
+ case 'backup':need_admin();backup_send();
  case 'users_list':need_admin();out(['users'=>q("SELECT u.id,u.username,u.name,u.role,u.bio,u.avatar,u.lang,(SELECT COUNT(*) FROM room_members m WHERE m.user_id=u.id) rooms FROM users u ORDER BY u.id")->fetchAll()]);
  case 'users_search':
   need_admin();

@@ -3,15 +3,25 @@ set -euo pipefail
 DOMAIN=""
 EMAIL=""
 APPDIR=""
+ADMIN_USER=""
+ADMIN_PASS=""
+ADMIN_NAME=""
 while [ $# -gt 0 ]; do
  case "$1" in
   --domain) DOMAIN="${2:-}"; shift 2;;
   --email) EMAIL="${2:-}"; shift 2;;
   --dir) APPDIR="${2:-}"; shift 2;;
+  --admin-user) ADMIN_USER="${2:-}"; shift 2;;
+  --admin-pass) ADMIN_PASS="${2:-}"; shift 2;;
+  --admin-name) ADMIN_NAME="${2:-}"; shift 2;;
   *) echo "sudo bash install/ubuntu.sh --domain meet.example.com --email you@example.com"; exit 1;;
  esac
 done
 if [ "$(id -u)" -ne 0 ]; then echo "Run this script as root"; exit 1; fi
+if [ -z "$ADMIN_USER" ]; then ADMIN_USER=admin; fi
+if ! printf '%s' "$ADMIN_USER" | grep -Eq '^[A-Za-z0-9._-]{3,50}$'; then echo "Invalid admin username"; exit 1; fi
+if [ -n "$ADMIN_PASS" ] && [ "${#ADMIN_PASS}" -lt 4 ]; then echo "Admin password is too short"; exit 1; fi
+case "$ADMIN_PASS" in *$'\n'*|*$'\r'*) echo "Invalid admin password"; exit 1;; esac
 if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then echo "Domain and email are required"; exit 1; fi
 if ! printf '%s' "$DOMAIN" | grep -Eq '^[A-Za-z0-9.-]+$'; then echo "Invalid domain"; exit 1; fi
 if ! printf '%s' "$EMAIL" | grep -Eq '^[^@[:space:]]+@[^@[:space:]]+$'; then echo "Invalid email"; exit 1; fi
@@ -92,6 +102,10 @@ if [ -n "$PUB" ] && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then EXT="${PUB}/${
 if [ -n "$EXT" ]; then EXTLINE="external-ip=${EXT}"; fi
 install -d /var/www/certbot /etc/nginx/sites-available /etc/nginx/sites-enabled
 rm -f /etc/nginx/sites-enabled/default
+ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable >/dev/null 2>&1 || true
 if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
  cat > /etc/nginx/sites-available/didar <<EOF
 server {
@@ -105,7 +119,14 @@ EOF
  nginx -t
  systemctl enable --now nginx
  systemctl reload nginx
- certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$EMAIL" --agree-tos --non-interactive --keep-until-expiring
+ if ! certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$EMAIL" --agree-tos --non-interactive --keep-until-expiring; then
+  echo "The certificate request failed. Point ${DOMAIN} at this server and run the script again."
+  exit 1
+ fi
+fi
+if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+ echo "The certificate for ${DOMAIN} is missing."
+ exit 1
 fi
 install -d -o turnserver -g turnserver -m 750 /etc/coturn/certs
 cp "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" /etc/coturn/certs/fullchain.pem
@@ -214,7 +235,27 @@ EOF
 systemctl daemon-reload
 systemctl enable --now livekit
 systemctl restart livekit
+if ! sudo -u www-data test -r "$APPDIR/index.php"; then
+ if [ "$(readlink -f "$APPDIR")" != "$(readlink -f /var/www/didar)" ]; then
+  install -d /var/www/didar
+  cp -a "$APPDIR"/. /var/www/didar/
+  APPDIR=/var/www/didar
+  export DIDAR_APP="$APPDIR"
+  echo "Project copied to /var/www/didar so the web server can read it."
+ fi
+fi
+if ! sudo -u www-data test -r "$APPDIR/index.php"; then
+ echo "www-data cannot read ${APPDIR}. Move the project to /var/www/didar and run again."
+ exit 1
+fi
+export DIDAR_APP="$APPDIR"
+systemctl enable --now "php${PHPVER}-fpm"
 PHPSOCK="/run/php/php${PHPVER}-fpm.sock"
+if [ ! -S "$PHPSOCK" ]; then
+ ALT="$(find /run/php -type s -name 'php*-fpm.sock' -print -quit || true)"
+ if [ -n "${ALT:-}" ]; then PHPSOCK="$ALT"; fi
+fi
+if [ ! -S "$PHPSOCK" ]; then echo "PHP-FPM socket was not found"; exit 1; fi
 NGXVER="$(nginx -v 2>&1 | awk -F/ '{print $2; exit}')"
 HTTP2=' listen 443 ssl http2;'
 LOW="$(printf '%s\n%s\n' "$NGXVER" "1.25.1" | sort -V | awk 'NR==1{print; exit}')"
@@ -235,6 +276,7 @@ ${HTTP2}
  root ${APPDIR};
  index index.php;
  client_max_body_size 64m;
+ location / { try_files \$uri \$uri/ /index.php?\$query_string; }
  location /rtc {
   proxy_pass http://127.0.0.1:7880;
   proxy_http_version 1.1;
@@ -250,11 +292,14 @@ ${HTTP2}
   proxy_read_timeout 60s;
  }
  location ~ \.php\$ {
-  include snippets/fastcgi-php.conf;
+  try_files \$uri =404;
+  include fastcgi_params;
+  fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
   fastcgi_pass unix:${PHPSOCK};
+  fastcgi_read_timeout 120s;
  }
+ location ^~ /install/ { deny all; }
  location ~ ^/(storage|lib)/ { deny all; }
- location ~ ^/install/.+\.(sh|sql)\$ { deny all; }
  location ~ /(config\.php|config\.local\.php)\$ { deny all; }
  location ~ /\. { deny all; }
 }
@@ -302,22 +347,90 @@ if(!$exist || $oldUser!=="didar" || $oldPass==="") $C["db_pass"]=getenv("DIDAR_D
 else $C["db_pass"]=$oldPass;
 if(!isset($C["turn"])||!is_array($C["turn"])) $C["turn"]=[];
 $d=getenv("DIDAR_DOMAIN");
-$seed=["domain"=>$d,"stun"=>"stun:".$d.":3478","turn_url"=>"turn:".$d.":3478,turn:".$d.":3478?transport=tcp,turns:".$d.":5349?transport=tcp","turn_secret"=>getenv("DIDAR_TURNSEC"),"lk_url"=>"wss://".$d,"lk_key"=>getenv("DIDAR_LKKEY"),"lk_secret"=>getenv("DIDAR_LKSEC"),"link_mode"=>"sfu"];
+$seed=["brand"=>"دیدار","domain"=>"https://".$d,"stun"=>"stun:".$d.":3478","turn_url"=>"turn:".$d.":3478,turn:".$d.":3478?transport=tcp,turns:".$d.":5349?transport=tcp","turn_secret"=>getenv("DIDAR_TURNSEC"),"lk_url"=>"wss://".$d,"lk_key"=>getenv("DIDAR_LKKEY"),"lk_secret"=>getenv("DIDAR_LKSEC"),"link_mode"=>"sfu","calendar"=>"jalali","timezone"=>"Asia/Tehran","default_lang"=>"fa","pass_policy"=>"low","quality"=>"mid","ice_relay"=>"0"];
 if(!isset($C["seed"])||!is_array($C["seed"])) $C["seed"]=[];
 foreach($seed as $k=>$v) $C["seed"][$k]=$v;
 file_put_contents($f,"<?php\n\$C=".var_export($C,true).";\n");
 '
 chown root:www-data "$APPDIR/config.local.php"
 chmod 640 "$APPDIR/config.local.php"
-ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
+if [ -f "$APPDIR/install/schema.sql" ]; then cp "$APPDIR/install/schema.sql" /etc/didar/schema.sql; fi
+if [ ! -f /etc/didar/schema.sql ]; then echo "schema.sql is missing"; exit 1; fi
+chmod 600 /etc/didar/schema.sql
+find "$APPDIR/storage" -mindepth 1 ! -name '.gitkeep' -delete
+find "$APPDIR/assets/avatars" -type f ! -name 'index.html' -delete
+mysql <<'SQL'
+DROP DATABASE IF EXISTS didar;
+CREATE DATABASE didar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON didar.* TO 'didar'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+if [ -z "$ADMIN_PASS" ] && [ -t 0 ]; then
+ echo "Press Enter to generate an admin password."
+ read -r -s -p "Admin password: " ADMIN_PASS || true
+ echo
+fi
+if [ -z "$ADMIN_PASS" ]; then ADMIN_PASS="$(openssl rand -hex 8)"; fi
+if [ "${#ADMIN_PASS}" -lt 4 ]; then echo "Admin password is too short"; exit 1; fi
+export DIDAR_ADMIN_USER="$ADMIN_USER" DIDAR_ADMIN_PASS="$ADMIN_PASS" DIDAR_ADMIN_NAME="$ADMIN_NAME" DIDAR_APP="$APPDIR"
+php <<'PHP'
+<?php
+$pass=getenv('DIDAR_DBPASS');
+$user=getenv('DIDAR_ADMIN_USER');
+$pw=getenv('DIDAR_ADMIN_PASS');
+$name=getenv('DIDAR_ADMIN_NAME');
+$domain=getenv('DIDAR_DOMAIN');
+$app=getenv('DIDAR_APP');
+if(!is_string($user)||!preg_match('/^[A-Za-z0-9._-]{3,50}$/',$user)){fwrite(STDERR,"Invalid admin username\n"); exit(1);}
+if(!is_string($pw)||strlen($pw)<4){fwrite(STDERR,"Invalid admin password\n"); exit(1);}
+if(!is_string($name)||$name==='') $name='Admin';
+if(function_exists('mb_substr')) $name=mb_substr($name,0,100);
+$opt=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC];
+if(defined('PDO::MYSQL_ATTR_CONNECT_TIMEOUT')) $opt[PDO::MYSQL_ATTR_CONNECT_TIMEOUT]=5;
+$pdo=new PDO('mysql:host=localhost;dbname=didar;charset=utf8mb4','didar',(string)$pass,$opt);
+$sql=file_get_contents('/etc/didar/schema.sql');
+foreach(array_filter(array_map('trim',explode(';',$sql))) as $st){if($st!=='') $pdo->exec($st);}
+$rep=$pdo->prepare('REPLACE INTO settings(k,v) VALUES(?,?)');
+$rows=['brand'=>'دیدار','domain'=>'https://'.$domain,'stun'=>'stun:'.$domain.':3478','turn_url'=>'turn:'.$domain.':3478,turn:'.$domain.':3478?transport=tcp,turns:'.$domain.':5349?transport=tcp','turn_secret'=>(string)getenv('DIDAR_TURNSEC'),'turn_user'=>'','turn_pass'=>'','ice_relay'=>'0','quality'=>'mid','link_mode'=>'sfu','lk_url'=>'wss://'.$domain,'lk_key'=>(string)getenv('DIDAR_LKKEY'),'lk_secret'=>(string)getenv('DIDAR_LKSEC'),'calendar'=>'jalali','timezone'=>'Asia/Tehran','pass_policy'=>'low','default_lang'=>'fa'];
+foreach($rows as $k=>$v) $rep->execute([$k,(string)$v]);
+$pdo->prepare("INSERT INTO users(username,pass,name,role,lang) VALUES(?,?,?,'admin','fa')")->execute([$user,password_hash((string)$pw,PASSWORD_DEFAULT),$name]);
+file_put_contents($app.'/storage/schema.ok','4');
+file_put_contents($app.'/storage/seed.ok','1');
+file_put_contents($app.'/storage/installed.lock','1');
+file_put_contents('/etc/didar/admin.txt',"username=".$user."\npassword=".$pw."\n");
+chmod('/etc/didar/admin.txt',0600);
+PHP
+install -d -o www-data -g www-data -m 750 "$APPDIR/storage/sessions"
+chown -R www-data:www-data "$APPDIR/storage" "$APPDIR/assets/avatars"
+chmod 750 "$APPDIR/storage"
+rm -f "$APPDIR/install/install.php" "$APPDIR/install/schema.sql"
+if [ ! -f "$APPDIR/install/didar-update.sh" ]; then echo "Updater script is missing"; exit 1; fi
+install -m 755 "$APPDIR/install/didar-update.sh" /usr/local/sbin/didar-update
+printf '%s\n' "$APPDIR" > /etc/didar/appdir
+chmod 644 /etc/didar/appdir
+printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update\n' > /etc/sudoers.d/didar
+chmod 440 /etc/sudoers.d/didar
+visudo -cf /etc/sudoers.d/didar >/dev/null
 ufw allow 3478/tcp
 ufw allow 3478/udp
 ufw allow 5349/tcp
 ufw allow 7881/tcp
 ufw allow 49152:49999/udp
 ufw allow 50000:60000/udp
-ufw --force enable
-echo "Server is ready. Open https://${DOMAIN}/install/install.php and create the admin."
-echo "Secrets stay in /etc/didar/secrets.env and config.local.php."
+systemctl restart "php${PHPVER}-fpm"
+systemctl reload nginx
+HOME_OK=0
+if curl -kfsS --max-time 20 --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" -o /tmp/didar-home.html; then
+ if grep -q 'id="login"' /tmp/didar-home.html; then HOME_OK=1; fi
+fi
+rm -f /tmp/didar-home.html
+echo "Admin username: ${ADMIN_USER}"
+echo "Admin password: ${ADMIN_PASS}"
+echo "The same login is stored in /etc/didar/admin.txt"
+if [ "$HOME_OK" -ne 1 ]; then
+ echo "The site did not answer on https://${DOMAIN}/ yet. Check: systemctl status nginx php${PHPVER}-fpm mariadb"
+ exit 1
+fi
+echo "Didar is ready at https://${DOMAIN}/"
+echo "In Settings, choose few people or many people. Everything else is filled in."
+unset DIDAR_ADMIN_PASS ADMIN_PASS

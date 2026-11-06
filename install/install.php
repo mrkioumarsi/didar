@@ -84,7 +84,9 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
     file_put_contents($root.'/storage/schema.ok','4');
     file_put_contents($root.'/storage/seed.ok','1');
     file_put_contents($root.'/storage/installed.lock','1');
-    header('Location: install.php?done=1');
+    @unlink(__DIR__.'/schema.sql');
+    @unlink(__FILE__);
+    header('Location: ../index.php');
     exit;
    }catch(Throwable $e){log_err($e);$err=t('install.dbfail');}
   }

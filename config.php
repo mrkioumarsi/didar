@@ -5,6 +5,7 @@ error_reporting(E_ALL&~E_NOTICE&~E_WARNING&~E_DEPRECATED);
 ini_set('display_errors','0');
 $https=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')||(($_SERVER['HTTP_X_FORWARDED_PROTO']??'')==='https');
 define('LOGIN_DAYS',90);
+if(PHP_SAPI!=='cli'){
 $sd=__DIR__.'/storage/sessions';
 if(!is_dir($sd)){@mkdir($sd,0700,true);@file_put_contents($sd.'/index.html','');}
 if(is_dir($sd)&&is_writable($sd))ini_set('session.save_path',$sd);
@@ -17,11 +18,12 @@ else session_set_cookie_params(LOGIN_DAYS*86400,'/','',$https,true);
 session_start();
 if(empty($_SESSION['csrf']))$_SESSION['csrf']=bin2hex(random_bytes(16));
 if(PHP_VERSION_ID>=70300)setcookie(session_name(),session_id(),['expires'=>time()+LOGIN_DAYS*86400,'path'=>'/','secure'=>$https,'httponly'=>true,'samesite'=>'Lax']);
-if(PHP_SAPI!=='cli'&&!headers_sent()){
+if(!headers_sent()){
  header('X-Frame-Options: SAMEORIGIN');
  header('X-Content-Type-Options: nosniff');
  header('Referrer-Policy: same-origin');
  header('X-Robots-Tag: noindex');
+}
 }
 
 function db(){
@@ -181,6 +183,7 @@ function log_err($e){
 require __DIR__.'/lib/jdate.php';
 require __DIR__.'/lib/i18n.php';
 require __DIR__.'/lib/monitor.php';
+require __DIR__.'/lib/maintain.php';
 if(PHP_SAPI!=='cli'){
  if(file_exists(__DIR__.'/storage/installed.lock')){try{ensure_schema();auth_restore();}catch(Throwable $e){log_err($e);}}
  try{i18n_boot();}catch(Throwable $e){$LANG='fa';$T=[];$TF=[];$LANG_META=['dir'=>'rtl','digits'=>'fa'];}

@@ -1,6 +1,12 @@
 <?php
 require 'config.php';
-if(!file_exists(__DIR__.'/storage/installed.lock')){header('Location: install/install.php');exit;}
+if(!file_exists(__DIR__.'/storage/installed.lock')){
+ if(is_file(__DIR__.'/install/install.php')){header('Location: install/install.php');exit;}
+ http_response_code(503);
+ header('Content-Type: text/plain; charset=utf-8');
+ echo t('install.missing');
+ exit;
+}
 $b=h(setting('brand')?:'دیدار');
 $langs=lang_list();
 $cur=html_lang();
@@ -48,6 +54,11 @@ $cal=app_cal();
 <label><?=t('set.quality')?></label><select id="sq"><option value="low"><?=t('set.q.low')?></option><option value="mid"><?=t('set.q.mid')?></option><option value="high"><?=t('set.q.high')?></option></select><p class="hint"><?=t('set.q.hint')?></p>
 <div class="sec setrow"><div><b><?=t('set.relay')?></b><p class="hint"><?=t('set.relay.hint')?></p></div><label class="toggle"><span class="sw"><input type="checkbox" id="sr"><i></i></span></label></div>
 <div class="inl"><button type="button" class="btn ghost sm" id="stest"><?=t('set.test')?></button></div><p id="sres" class="hint"></p></div>
+<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="down" data-s="22"></span><div><h3><?=t('bak.title')?></h3><p class="mu"><?=t('bak.sub')?></p></div></div>
+<p class="hint"><?=t('bak.hint')?></p><button type="button" class="btn ghost sm" id="sbak"><?=t('bak.btn')?></button></div>
+<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="arrow" data-s="22"></span><div><h3><?=t('upd.title')?></h3><p class="mu"><?=t('upd.sub')?></p></div></div>
+<p class="hint" id="updnote"><?=t('upd.cur',['v'=>locn(trim((string)@file_get_contents(__DIR__.'/VERSION')))])?></p>
+<div class="inl"><button type="button" class="btn ghost sm" id="updchk"><?=t('upd.check')?></button><button type="button" class="btn sm" id="updgo" disabled><?=t('upd.apply')?></button></div></div>
 </div>
 <div class="sbar"><button class="btn" id="ss"><?=t('set.save')?></button></div>
 <h3 class="gh"><?=t('help.title')?></h3>
