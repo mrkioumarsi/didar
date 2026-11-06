@@ -357,26 +357,23 @@ try{
  case 'rec_chunk':
   $p=part();
   if(!$p['mgr']||empty($_FILES['f'])||!is_uploaded_file($_FILES['f']['tmp_name']??''))fail(t('err.forbidden'));
-  if(!empty($_FILES['f']['error']))fail(t('err.nosave'));
+  $upErr=(int)($_FILES['f']['error']??0);
+  if($upErr===UPLOAD_ERR_INI_SIZE||$upErr===UPLOAD_ERR_FORM_SIZE)fail(t('err.toobig'));
+  if($upErr!==UPLOAD_ERR_OK)fail(t('err.nosave'));
   $add=(int)$_FILES['f']['size'];
   if($add<1||$add>16*1048576)fail(t('err.toobig'));
   $r=q("SELECT * FROM recordings WHERE id=? AND room_id=?",[(int)$P['id'],$p['room_id']])->fetch()?:fail(t('err.nomsg'));
   $fn=basename($r['file']);
   if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn))fail(t('err.forbidden'));
   $fp=__DIR__.'/storage/'.$fn;
-  $in=fopen($_FILES['f']['tmp_name'],'rb');
-  $out=fopen($fp,'ab');
-  if(!$in||!$out){if(is_resource($in))fclose($in);if(is_resource($out))fclose($out);fail(t('err.nosave'));}
-  if(!flock($out,LOCK_EX)){fclose($in);fclose($out);fail(t('err.nosave'));}
+  if(!is_file($fp))fail(t('err.nosave'));
   clearstatcache(true,$fp);
-  $cur=is_file($fp)?(int)filesize($fp):0;
-  if($cur<0||$cur+$add>2147483648){flock($out,LOCK_UN);fclose($in);fclose($out);fail(t('err.toobig'));}
-  $w=stream_copy_to_stream($in,$out);
-  fflush($out);
-  flock($out,LOCK_UN);
-  fclose($in);
-  fclose($out);
-  if($w===false||$w<1)fail(t('err.nosave'));
+  $cur=(int)filesize($fp);
+  if($cur<0||$cur+$add>2147483648)fail(t('err.toobig'));
+  $raw=@file_get_contents($_FILES['f']['tmp_name']);
+  if(!is_string($raw)||strlen($raw)<1)fail(t('err.nosave'));
+  $w=@file_put_contents($fp,$raw,FILE_APPEND|LOCK_EX);
+  if($w===false||$w!==strlen($raw))fail(t('err.nosave'));
   clearstatcache(true,$fp);
   q("UPDATE recordings SET size=? WHERE id=?",[(int)filesize($fp),$r['id']]);
   out(['ok'=>1]);
