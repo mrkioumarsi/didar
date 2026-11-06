@@ -296,11 +296,12 @@ ${HTTP2}
   include fastcgi_params;
   fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
   fastcgi_pass unix:${PHPSOCK};
-  fastcgi_read_timeout 120s;
+  fastcgi_read_timeout 180s;
  }
  location = /schema.sql { deny all; }
  location = /ubuntu.sh { deny all; }
  location = /didar-update.sh { deny all; }
+ location = /install.php { deny all; }
  location ~ ^/(storage|lib)/ { deny all; }
  location ~ /(config\.php|config\.local\.php)\$ { deny all; }
  location ~ /\. { deny all; }
@@ -309,7 +310,7 @@ EOF
 ln -sfn /etc/nginx/sites-available/didar /etc/nginx/sites-enabled/didar
 nginx -t
 install -d "/etc/php/${PHPVER}/fpm/conf.d" "/etc/php/${PHPVER}/cli/conf.d"
-printf 'memory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\n' > "/etc/php/${PHPVER}/fpm/conf.d/99-didar.ini"
+printf 'memory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nexpose_php=Off\n' > "/etc/php/${PHPVER}/fpm/conf.d/99-didar.ini"
 cp "/etc/php/${PHPVER}/fpm/conf.d/99-didar.ini" "/etc/php/${PHPVER}/cli/conf.d/99-didar.ini"
 POOL="/etc/php/${PHPVER}/fpm/pool.d/www.conf"
 if [ -f "$POOL" ]; then

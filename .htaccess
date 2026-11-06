@@ -1,4 +1,4 @@
-<FilesMatch "^(config\.php|config\.local\.php)$">
+<FilesMatch "^(config\.php|config\.local\.php|install\.php)$">
 Require all denied
 </FilesMatch>
 <FilesMatch "\.(sql|sh)$">

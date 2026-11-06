@@ -330,15 +330,29 @@ try{
   out(['id'=>(int)db()->lastInsertId()]);
  case 'rec_chunk':
   $p=part();
-  if(!$p['mgr']||empty($_FILES['f']))fail(t('err.forbidden'));
+  if(!$p['mgr']||empty($_FILES['f'])||!is_uploaded_file($_FILES['f']['tmp_name']??''))fail(t('err.forbidden'));
+  if(!empty($_FILES['f']['error']))fail(t('err.nosave'));
+  $add=(int)$_FILES['f']['size'];
+  if($add<1||$add>16*1048576)fail(t('err.toobig'));
   $r=q("SELECT * FROM recordings WHERE id=? AND room_id=?",[(int)$P['id'],$p['room_id']])->fetch()?:fail(t('err.nomsg'));
   $fn=basename($r['file']);
   if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn))fail(t('err.forbidden'));
   $fp=__DIR__.'/storage/'.$fn;
-  if(is_file($fp)&&filesize($fp)>2147483648)fail(t('err.toobig'));
-  file_put_contents($fp,file_get_contents($_FILES['f']['tmp_name']),FILE_APPEND|LOCK_EX);
-  clearstatcache();
-  q("UPDATE recordings SET size=? WHERE id=?",[filesize($fp),$r['id']]);
+  $in=fopen($_FILES['f']['tmp_name'],'rb');
+  $out=fopen($fp,'ab');
+  if(!$in||!$out){if(is_resource($in))fclose($in);if(is_resource($out))fclose($out);fail(t('err.nosave'));}
+  if(!flock($out,LOCK_EX)){fclose($in);fclose($out);fail(t('err.nosave'));}
+  clearstatcache(true,$fp);
+  $cur=is_file($fp)?(int)filesize($fp):0;
+  if($cur<0||$cur+$add>2147483648){flock($out,LOCK_UN);fclose($in);fclose($out);fail(t('err.toobig'));}
+  $w=stream_copy_to_stream($in,$out);
+  fflush($out);
+  flock($out,LOCK_UN);
+  fclose($in);
+  fclose($out);
+  if($w===false||$w<1)fail(t('err.nosave'));
+  clearstatcache(true,$fp);
+  q("UPDATE recordings SET size=? WHERE id=?",[(int)filesize($fp),$r['id']]);
   out(['ok'=>1]);
  case 'rec_list':
   if(!room_access((int)$P['room_id']))fail(t('err.forbidden'));

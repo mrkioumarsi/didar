@@ -169,16 +169,27 @@ function nginx_hide(){
   @copy($sh,'/usr/local/sbin/didar-update');
   @chmod('/usr/local/sbin/didar-update',0755);
  }
+ $ver=PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;
+ foreach(['fpm','cli'] as $k){
+  $ini="/etc/php/$ver/$k/conf.d/99-didar.ini";
+  if(!is_file($ini)||!is_writable($ini))continue;
+  $txt=(string)@file_get_contents($ini);
+  if($txt!==''&&!str_contains($txt,'expose_php'))@file_put_contents($ini,rtrim($txt)."\nexpose_php=Off\n");
+ }
  $f='/etc/nginx/sites-available/didar';
  if(!is_file($f)||!is_writable($f))return;
  $t=@file_get_contents($f);
- if(!is_string($t)||$t===''||str_contains($t,'location = /schema.sql'))return;
- $add=" location = /schema.sql { deny all; }\n location = /ubuntu.sh { deny all; }\n location = /didar-update.sh { deny all; }\n";
- $n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$t,1);
- if(is_string($n)&&$n!==$t){
-  @file_put_contents($f,$n);
-  if(didar_fn('exec'))exec('nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1');
+ if(!is_string($t)||$t==='')return;
+ $n=str_replace('fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;',$t);
+ $add='';
+ foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /install.php { deny all; }'] as $line){
+  if(!str_contains($n,$line))$add.=" ".$line."\n";
  }
+ if($add!=='')$n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$n,1);
+ if(!is_string($n)||$n===$t)return;
+ @file_put_contents($f,$n);
+ if(getenv('DIDAR_UPDATE')==='1')return;
+ if(didar_fn('exec'))exec('bash -c '.escapeshellarg('sleep 2; systemctl reload php'.$ver.'-fpm >/dev/null 2>&1 || true; nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true').' >/dev/null 2>&1 &');
 }
 function update_finish($root){
  if(is_dir('/etc/didar')&&is_writable('/etc/didar')){
@@ -228,6 +239,7 @@ function update_apply_root(){
  if($root==='') return false;
  if(!update_pull($root)) return false;
  didar_fix_tree($root);
+ if(getenv('DIDAR_UPDATE')==='1') return true;
  if(didar_fn('exec')){
   $ver=PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;
   exec('systemctl reload php'.$ver.'-fpm >/dev/null 2>&1');
@@ -243,11 +255,12 @@ function update_apply(){
  if($how==='sudo'){
   $out=[];$code=1;
   exec('sudo -n /usr/local/sbin/didar-update 2>&1',$out,$code);
-  if($code!==0){
+  $now=app_version();
+  if($code!==0&&version_compare($now,(string)$info['latest'],'<')){
    if(function_exists('log_err')) log_err(new RuntimeException('update '.substr(implode(' ',$out),0,300)));
    return ['ok'=>0,'error'=>'fail'];
   }
-  return ['ok'=>1,'cur'=>app_version(),'latest'=>$info['latest']];
+  return ['ok'=>1,'cur'=>$now,'latest'=>$info['latest']];
  }
  if($how==='write'){
   $root=dirname(__DIR__);

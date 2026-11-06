@@ -82,6 +82,8 @@ function ensure_schema(){
  if($d)return;
  $d=1;
  install_cleanup();
+ $mark=__DIR__.'/storage/rec-size.ok';
+ if(@file_get_contents($mark)!=='1'){try{db()->exec("ALTER TABLE recordings MODIFY size BIGINT UNSIGNED NOT NULL DEFAULT 0");@file_put_contents($mark,'1');}catch(Exception $e){}}
  $f=__DIR__.'/storage/schema.ok';
  if(@file_get_contents($f)==='4'){apply_seed();return;}
  foreach(["participants ADD can_cam TINYINT DEFAULT 0","participants ADD can_board TINYINT DEFAULT 0","participants ADD cam_on TINYINT DEFAULT 0","room_members ADD can_cam TINYINT DEFAULT 0","room_members ADD can_board TINYINT DEFAULT 0","rooms ADD description TEXT NULL","rooms ADD rec_enabled TINYINT DEFAULT 1","chat ADD owner VARCHAR(20) DEFAULT ''","chat ADD deleted_at DATETIME NULL","users ADD bio VARCHAR(300) NOT NULL DEFAULT ''","users ADD avatar VARCHAR(100) NULL","users ADD lang VARCHAR(8) NOT NULL DEFAULT ''","settings MODIFY k VARCHAR(40) NOT NULL"] as $s){try{db()->exec("ALTER TABLE $s");}catch(Exception $e){}}

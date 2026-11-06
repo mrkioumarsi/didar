@@ -1,49 +1,33 @@
 # Didar
 
-Meeting rooms in the browser, built with PHP. A small group connects directly. A larger group uses your own Ubuntu server for audio and video.
+Didar is a meeting app that runs in the browser and is built with PHP. People join a room, talk, turn a camera on, share a screen, draw on the whiteboard, and send chat. A small group connects directly from browser to browser. A larger group sends audio and video through a media server that this project installs on your own Ubuntu machine. There is no outside meeting service. Accounts, rooms, chat, recordings, and settings stay in your database.
+
+The web app handles sign-in, languages, the calendar, and a simple view of who is online. Settings can download a full database backup and replace the app with a newer GitHub release.
 
 [فارسی](README.fa.md)
 
 ## What you need
-
-**Ubuntu server**
 
 - Ubuntu with root access
 - A domain whose A record points at that server
 - An email address for the HTTPS certificate
 - These ports open: 22, 80, 443, 3478 (TCP and UDP), 5349 (TCP), 7881 (TCP), UDP 49152–49999, and UDP 50000–60000
 
-**Shared hosting**
-
-- PHP 8 and MySQL
-- HTTPS
-- Enough for a small group only. Audio and video go directly between browsers
-
-## Install on Ubuntu
+## Install
 
 Copy the project onto the server, open that folder, and run:
 
 ```bash
-sudo bash ubuntu.sh --domain meet.example.com --email you@example.com
+sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
 ```
 
-The admin login is optional: `--admin-user admin --admin-pass 'your-password'`. If you leave the password out, the script makes one and prints it at the end.
+Put your own admin username and password in that command. The password must be at least 4 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
 
-The script installs the web server, PHP, the database, the certificate, and the audio and video service. It creates the admin account and then removes the web installer.
+The script installs the web server, PHP, the database, the certificate, and the audio and video service. It creates the admin account and then removes the installer from the web root.
 
 Open `https://meet.example.com/` and sign in. In Settings, choose few people or many people. The addresses are already filled in.
 
 Running the script again clears the Didar database and installs from the start. Other software on the server stays.
-
-## Install on shared hosting
-
-Create an empty MySQL database, upload the files, and open:
-
-```text
-https://your-domain/install.php
-```
-
-The installer opens in English until you pick another language. After a successful install it deletes itself and the database file. Leave the connection mode on few people.
 
 ## In the app
 
@@ -51,6 +35,7 @@ The installer opens in English until you pick another language. After a successf
 - Dates follow the calendar and time zone in Settings.
 - Password strength is in Settings: low, medium, or high.
 - The online count comes from the app. CPU, memory, and bandwidth show up when the server can read them.
+- A room manager can record the meeting. The file is listed on that room and can be downloaded from the room card.
 - Settings can download a full database backup.
 - Settings checks the GitHub release. When you confirm, it replaces the app files. The database, `config.local.php`, and uploaded files stay.
 

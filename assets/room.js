@@ -170,15 +170,17 @@ function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;x.fillStyl
  let vs=$('#scrs video').toArray();if(!vs.length)vs=$('#tiles video').toArray();vs=vs.filter(v=>v.readyState>=2&&v.videoWidth);if(!vs.length)return;
  const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;
  vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
-$('#bRec').click(async function(){if(rec){rec.mr.stop();return}if(!S.recOn)return toast(t('err.rec.off'));
+$('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(!S.recOn)return toast(t('err.rec.off'));
  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mt)return toast(t('err.rec.browser'));
- let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){return}
- const ctx=new AudioContext();ctx.resume&&ctx.resume();const dest=ctx.createMediaStreamDestination(),rc=document.createElement('canvas');rc.width=1280;rc.height=720;
- const r=rec={ctx,dest,id,n:0,q:Promise.resolve()};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));L.mic&&mixAdd(new MediaStream([L.mic]));
+ const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),rc=document.createElement('canvas');rc.width=1280;rc.height=720;
+ let mr;try{mr=new MediaRecorder(new MediaStream([...rc.captureStream(15).getVideoTracks(),...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
+ let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){ctx.close();return}
+ const r=rec={ctx,dest,id,n:0,q:Promise.resolve(),bad:0,mr};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));
  r.tm=setInterval(()=>frame(rc),66);
- const mr=r.mr=new MediaRecorder(new MediaStream([...rc.captureStream(15).getVideoTracks(),...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000});
- mr.ondataavailable=e=>{if(!e.data.size)return;const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c');if(window.CSRF)fd.append('csrf',window.CSRF);
-  r.q=r.q.then(()=>fetch('api.php?action=rec_chunk',{method:'POST',body:fd,credentials:'same-origin'}).catch(()=>{}))};
- mr.onstop=()=>{clearInterval(r.tm);r.q.then(()=>{ctx.close();rec=null;$('#bRec').removeClass('rec');toast(t('rec.saved'))})};
- mr.start(5000);$('#bRec').addClass('rec');toast(t('rec.started'))});
+ mr.ondataavailable=e=>{if(!e.data||!e.data.size)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c.'+(mt.includes('mp4')?'mp4':'webm'));if(window.CSRF)fd.append('csrf',window.CSRF);
+  r.q=r.q.then(()=>fetch('api.php?action=rec_chunk',{method:'POST',body:fd,credentials:'same-origin'}).then(res=>{if(!res.ok)throw 0})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
+ mr.onerror=()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(e){}};
+ mr.onstop=()=>{clearInterval(r.tm);const fin=()=>{try{ctx.close()}catch(e){}rec=null;$('#bRec').removeClass('rec');toast(t(r.bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
+ try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();rec=null;return toast(t('err.rec.browser'))}
+ $('#bRec').addClass('rec');toast(t('rec.started'))});
 });

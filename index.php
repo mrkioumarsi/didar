@@ -46,7 +46,7 @@ $cal=app_cal();
 <label><?=t('set.lkurl')?></label><input id="slu" dir="ltr" placeholder="wss://meet.example.com">
 <label><?=t('set.lkkey')?></label><input id="slk" dir="ltr">
 <label><?=t('set.lksec')?></label><input id="sls" dir="ltr"></div></div>
-<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="send" data-s="22"></span><div><h3><?=t('set.ice')?></h3><p class="mu"><?=t('set.ice.sub')?></p></div></div>
+<div class="card scard wide"><div class="sh2"><span class="rc-ic" data-i="send" data-s="22"></span><div><h3><?=t('set.ice')?></h3><p class="mu"><?=t('set.ice.sub')?></p></div></div>
 <label><?=t('set.stun')?></label><div class="inl"><input id="sst" dir="ltr" placeholder="<?=h(t('set.stun.ph'))?>"><button type="button" class="btn ghost sm" id="sstd"><?=t('set.stun.def')?></button></div><p class="hint"><?=t('set.stun.hint')?></p>
 <label><?=t('set.turn')?></label><input id="stu" dir="ltr" placeholder="<?=h(t('set.turn.ph'))?>"><p class="hint"><?=t('set.turn.hint')?></p>
 <label><?=t('set.turnsec')?></label><input id="stus" dir="ltr" placeholder="<?=h(t('set.turnsec.ph'))?>"><p class="hint"><?=t('set.turnsec.hint')?></p>
