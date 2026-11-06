@@ -3,7 +3,7 @@ const post=(a,d)=>$.post('api.php?action='+a,d||{},null,'json').fail(x=>toast((x
 let tab='rooms';const isAd=()=>U&&U.role==='admin';
 const row=(title,desc,f,on,id)=>`<div class="sec setrow"><div><b>${title}</b><p class="mu">${desc}</p></div><label class="toggle"><span class="sw"><input type="checkbox" ${f?`data-f="${f}"`:`id="${id}"`} ${on?'checked':''}><i></i></span></label></div>`;
 const langSel=(id,cur)=>`<label>${t('profile.lang')}</label><select id="${id}">${(APP.langs||[]).map(l=>`<option value="${esc(l.id)}" ${l.id===cur?'selected':''}>${esc(l.name)}</option>`).join('')}</select>`;
-function init(){post('me').done(r=>{U=r.user;APP=r;if(!U){$('#login').show();return}$('#login').hide();$('#app').show();$('#un').html(avh(U,26)+'<span>'+esc(U.name)+'</span>');$('.adm').toggle(isAd());$('#mainnav').toggle(isAd());
+function init(){post('me').done(r=>{U=r.user;APP=r;if(!U){$('#login').removeAttr('hidden');return}$('#login').attr('hidden',true);$('#app').show();$('#un').html(avh(U,26)+'<span>'+esc(U.name)+'</span>');$('.adm').toggle(isAd());$('#mainnav').toggle(isAd());
  if(r.cal)window.CAL=r.cal;if(r.tz)window.TZ=r.tz;
  $('#sb').val(r.brand||'');$('#sd').val(r.domain||'');$('#sst').val(r.stun||'');$('#stu').val(r.turn_url||'');$('#stuu').val(r.turn_user||'');$('#stup').val(r.turn_pass||'');$('#stus').val(r.turn_secret||'');$('#sr').prop('checked',r.ice_relay=='1');$('#sq').val(r.quality||'mid');
  $('#smode').val(r.mode||'p2p');$('#slu').val(r.lk_url||'');$('#slk').val(r.lk_key||'');$('#sls').val(r.lk_secret||'');
@@ -54,12 +54,13 @@ const filterRooms=()=>{const q=$('#rsq').val().trim();$('#rl .rc').each(function
 $('#rsq').on('input',filterRooms);
 $('#rl').on('click','[data-a]',function(){const a=$(this).data('a'),i=$(this).data('i');
  if(a=='att')attendance(RM[i]);if(a=='rec')recs(i);if(a=='set')settings(RM[i])});
-function recs(i){post('rec_list',{room_id:i}).done(r=>{const head='<div class="inl rechead"><h3 class="gx">'+t('rec.title')+'</h3>'+(isAd()&&r.recs.length?'<button type="button" class="btn sm danger" id="recall">'+t('rec.delall')+'</button>':'')+'</div>';
- const body=r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id);return '<div class="recitem"><button type="button" class="recstage" data-src="'+src+'"><span class="recgo"></span><span>'+t('rec.play')+'</span></button><div class="recmeta"><div class="gx">'+dtfmt(c.created)+'<div class="mu">'+locn((c.size/1048576).toFixed(1))+' '+t('rec.mb')+'</div></div>'+(r.mgr?'<button type="button" class="btn sm danger" data-d="'+(+c.id)+'">'+ic('trash',16)+'</button>':'')+'</div></div>'}).join('')||'<p class="mu">'+t('rec.empty')+'</p>';
- const md=modal(head+body,'lg');
- md.on('click','.recstage',function(){const src=this.getAttribute('data-src');
-  md.find('video.recplay').each(function(){try{this.pause()}catch(e){}const s=this.getAttribute('data-src'),b=document.createElement('button');b.type='button';b.className='recstage';b.setAttribute('data-src',s);b.innerHTML='<span class="recgo"></span><span>'+t('rec.play')+'</span>';this.replaceWith(b)});
-  const v=document.createElement('video');v.className='recplay';v.controls=true;v.playsInline=true;v.setAttribute('data-src',src);v.src=src;this.replaceWith(v);v.play().catch(function(){})});
+function recs(i){post('rec_list',{room_id:i}).done(r=>{const body=r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id);return '<div class="recitem"><div class="recrow"><button type="button" class="recopen" data-src="'+src+'"><span class="recgo"></span><span class="gx">'+dtfmt(c.created)+'<span class="mu">'+locn((c.size/1048576).toFixed(1))+' '+t('rec.mb')+'</span></span><span class="chev">'+ic('chev',18)+'</span></button>'+(r.mgr?'<button type="button" class="btn sm danger" data-d="'+(+c.id)+'">'+ic('trash',16)+'</button>':'')+'</div><div class="recdrop" hidden></div></div>'}).join('')||'<p class="mu">'+t('rec.empty')+'</p>';
+ const foot=isAd()&&r.recs.length?'<button type="button" class="btn danger block" id="recall">'+t('rec.delall')+'</button>':'';
+ const md=modal('<h3>'+t('rec.title')+'</h3>'+body+foot,'lg');
+ md.on('click','.recopen',function(){const row=$(this).closest('.recitem'),drop=row.find('.recdrop'),open=drop.is(':hidden'),src=this.getAttribute('data-src');
+  md.find('video').each(function(){try{this.pause()}catch(e){}});md.find('.recitem').removeClass('open');md.find('.recdrop').attr('hidden',true).empty();
+  if(!open)return;row.addClass('open');drop.removeAttr('hidden');
+  const v=document.createElement('video');v.className='recplay';v.controls=true;v.playsInline=true;v.preload='metadata';v.src=src;drop[0].appendChild(v);v.play().catch(function(){})});
  md.on('click','[data-d]',function(){confirm(t('confirm.rec'))&&post('rec_del',{id:$(this).data('d')}).done(()=>{md.remove();recs(i)})});
  md.on('click','#recall',function(){confirm(t('confirm.recall'))&&post('rec_clear',{room_id:i,confirm:1}).done(()=>{md.remove();recs(i)})})})}
 function picker($el,room,onChange){const sel=new Set();let tm;

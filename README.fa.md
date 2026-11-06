@@ -41,10 +41,6 @@ wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/
 
 ## حمایت
 
-<p align="center">
-  <a href="https://bscscan.com/address/0xAec9F6Ad80940a50e35F453d3354CA8379d0CFaD"><img alt="حمایت با تتر BEP20" src="https://img.shields.io/badge/Donate-USDT%20BEP20%20on%20BSC-f3ba2f?style=for-the-badge&logo=binance&logoColor=white"></a>
-</p>
-
 تتر روی شبکه BNB Smart Chain (BEP20):
 
 ```

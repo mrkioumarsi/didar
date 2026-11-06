@@ -41,10 +41,6 @@ Running the script again clears the Didar database and installs from the start. 
 
 ## Support
 
-<p align="center">
-  <a href="https://bscscan.com/address/0xAec9F6Ad80940a50e35F453d3354CA8379d0CFaD"><img alt="Donate USDT BEP20" src="https://img.shields.io/badge/Donate-USDT%20BEP20%20on%20BSC-f3ba2f?style=for-the-badge&logo=binance&logoColor=white"></a>
-</p>
-
 USDT on BNB Smart Chain (BEP20):
 
 ```
