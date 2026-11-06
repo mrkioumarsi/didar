@@ -1,5 +1,5 @@
 $(function(){const R=window.R,SL=5,W=1600,H=900;
-let S={},pcs={},L={mic:null,cam:null,camS:null,scr:[null,null,null],scrS:[null,null,null]},sSig=0,sChat=0,parts=[],spk=true,rec=null,chain=Promise.resolve(),uh='',shown=0,view='media',prevScr='',openU={},lk=null,sfuP=null,warned=0,leaving=0;
+let S={},pcs={},L={mic:null,cam:null,camS:null,scr:[null,null,null],scrS:[null,null,null]},sSig=0,sChat=0,parts=[],spk=true,rec=null,leaveAfter=0,chain=Promise.resolve(),uh='',shown=0,view='media',prevScr='',openU={},lk=null,sfuP=null,warned=0,leaving=0;
 const api=(a,d)=>$.ajax({url:'api.php?action='+a,method:'POST',data:Object.assign({pid:S.pid},d),dataType:'json'}).fail(x=>toast((x.responseJSON||{}).error||t('err.net')));
 const sig=(to,type,data)=>api('signal',{to,type,data:JSON.stringify(data)});
 const seti=(sel,n,s=22)=>$(sel).find('i').html(ic(n,s));
@@ -78,7 +78,7 @@ function fs(el){const d=document;if(d.fullscreenElement||d.webkitFullscreenEleme
  if(f){try{const p=f.call(el);p&&p.catch&&p.catch(()=>el.classList.add('fsx'))}catch(e){el.classList.add('fsx')}}else el.classList.add('fsx')}
 $(document).on('click','[data-fs]',function(){fs($(this).closest('.tile')[0])});$('#sfs').click(()=>fs($('#stage')[0]));$('#wfs').click(()=>fs($('#board')[0]));
 ['fullscreenchange','webkitfullscreenchange'].forEach(e=>document.addEventListener(e,()=>{const f=document.fullscreenElement||document.webkitFullscreenElement;$('#sfs').html(ic(f==$('#stage')[0]?'min2':'max',16));$('#wfs').html(ic(f==$('#board')[0]?'min2':'max',18))}));
-function setView(v){view=v;$('#vt button').removeClass('act').filter('[data-v='+v+']').addClass('act').removeClass('dot');const hold=!!rec;$('#media').toggleClass('na',v!='media'&&!hold).toggleClass('offstage',v!='media'&&hold);$('#board').toggleClass('na',v!='board'&&!hold).toggleClass('offstage',v!='board'&&hold);$('#stb').toggleClass('bv',v=='board')}
+function setView(v){view=v;$('#vt button').removeClass('act').filter('[data-v='+v+']').addClass('act').removeClass('dot');const hold=!!rec;$('#media').toggleClass('na',v!='media'&&!hold).toggleClass('offstage',v!='media'&&hold);$('#board').toggleClass('na',v!='board'&&!hold).toggleClass('offstage',v!='board'&&hold);$('#stb').toggleClass('bv',v=='board');if(rec&&rec.rc)frame(rec.rc)}
 $('#vt button').click(function(){setView($(this).data('v'))});
 const PM=[['mic','mic','perm.mic'],['cam','cam','perm.cam'],['screen','screen','perm.screen'],['board','board','perm.board']];
 function ui(){const mg=+S.me.mgr?1:0,seen={},dnm={};parts.forEach(p=>{seen[p.name]=(seen[p.name]||0)+1;dnm[p.id]=seen[p.name]>1?p.name+' ('+locn(seen[p.name])+')':p.name});$('#cnt').text(locn(parts.length));
@@ -137,8 +137,13 @@ function stopScr(k){const tr=L.scr[k];if(S.mode==='sfu'){if(tr)tr.onended=null;L
 $('#bScr').click(()=>{if(L.scr[0])return stopScr(0);if(!(+S.me.mgr||+S.me.can_screen))return toast(t('err.noscr'));addScr()});
 $('#bSpk').click(function(){spk=!spk;Object.values(pcs).forEach(o=>o.au&&(o.au.muted=!spk));$(this).toggleClass('on',spk);seti(this,spk?'spk':'spkoff')});
 $('#bLink').click(()=>linkModal(S.room.link));
-$('#bLeave').click(()=>{if(rec)return toast(t('rec.block'));leaving=1;if(lk)try{lk.disconnect()}catch(e){}Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')});
+function goOut(){leaving=1;if(lk)try{lk.disconnect()}catch(e){}Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')}
+function recPaint(){if(!rec)return;const tot=rec.total||0,done=Math.min(tot,rec.live||rec.sent||0),p=tot?Math.min(100,Math.round(done*100/tot)):0;$('#recbar').removeClass('na');$('#recpct').text(t('rec.up',{n:locn(p)}));$('#recbar .recfill').css('width',p+'%');$('#bLeave').prop('disabled',true)}
+function recDone(){$('#recbar').addClass('na');$('#recbar .recfill').css('width',0);$('#bLeave').prop('disabled',false)}
+$('#bLeave').click(()=>{if(rec){leaveAfter=1;$('#bLeave').prop('disabled',true);if(rec.mr&&rec.mr.state==='recording'){try{rec.mr.stop()}catch(e){}}recPaint();toast(t('rec.block'));return}goOut()});
 addEventListener('beforeunload',e=>{if(!rec)return;e.preventDefault();e.returnValue=''});
+addEventListener('popstate',()=>{if(!rec)return;try{history.pushState({rec:1},'')}catch(e){}if(rec.stopped)recPaint();toast(t('rec.block'))});
+document.addEventListener('visibilitychange',()=>{if(!rec||!rec.rc)return;if(rec.ctx&&rec.ctx.resume)rec.ctx.resume();frame(rec.rc)});
 addEventListener('pagehide',()=>{if(rec||!S.pid||!navigator.sendBeacon)return;const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)});
 const cv=$('#cv')[0],cx=cv.getContext('2d');let objs=[],gotFull=0,tool='pen',col='#111827',sz=6,cur=null,seq=0;
 const canB=()=>+S.me.mgr||+S.me.can_board,SHAPE=['line','arrow','rect','ell'];
@@ -167,23 +172,31 @@ $('#wgrid').click(function(){$(this).toggleClass('on');$('#cv').toggleClass('ng'
 $('#wclr').click(()=>confirm(t('confirm.board'))&&(objs=[],redraw(),sig(0,'wbclear',1)));
 $('#wsave').click(()=>{const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);x.drawImage(cv,0,0);const a=document.createElement('a');a.download='whiteboard.png';a.href=c.toDataURL('image/png');a.click()});
 function mixAdd(st){if(rec&&st&&st.getAudioTracks().length)try{rec.ctx.createMediaStreamSource(st).connect(rec.dest)}catch(e){}}
-function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;x.fillStyle='#0f172a';x.fillRect(0,0,w,h);
- if(view=='board'){x.fillStyle='#fff';x.fillRect(0,0,w,h);const k=Math.min(w/W,h/H);x.drawImage(cv,(w-W*k)/2,(h-H*k)/2,W*k,H*k);return}
- let vs=$('#scrs video').toArray();if(!vs.length)vs=$('#tiles video').toArray();vs=vs.filter(v=>v.readyState>=2&&v.videoWidth);if(!vs.length)return;
- const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;
- vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
+function recVid(tr){if(!rec||!tr||tr.readyState!=='live')return null;let v=rec.els.get(tr);if(v)return v;v=document.createElement('video');v.muted=true;v.autoplay=true;v.playsInline=true;v.srcObject=new MediaStream([tr]);rec.box.appendChild(v);if(v.play)v.play().catch(()=>{});rec.els.set(tr,v);return v}
+function recLive(){if(!rec)return [];const scr=[],cam=[],add=(st,bag)=>{const tr=st&&st.getVideoTracks&&st.getVideoTracks()[0],v=recVid(tr);if(v)bag.push(v)};
+ L.scrS.forEach(st=>add(st,scr));Object.values(pcs).forEach(o=>{if(o.vscr&&o.vscr.mediaStreamTrack){const v=recVid(o.vscr.mediaStreamTrack);if(v)scr.push(v)}else if(o.rs)add(o.rs[2],scr);if(o.rs){add(o.rs[3],scr);add(o.rs[4],scr)}});
+ add(L.camS,cam);Object.values(pcs).forEach(o=>{if(o.vcam&&o.vcam.mediaStreamTrack){const v=recVid(o.vcam.mediaStreamTrack);if(v)cam.push(v)}else if(o.rs)add(o.rs[1],cam)});
+ rec.els.forEach((v,tr)=>{if(tr.readyState==='live')return;try{v.pause()}catch(e){}v.remove();rec.els.delete(tr)});
+ return (scr.length?scr:cam).filter(v=>v.readyState>=2&&v.videoWidth)}
+function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;
+ if(view=='board'){x.fillStyle='#fff';x.fillRect(0,0,w,h);const k=Math.min(w/W,h/H);x.drawImage(cv,(w-W*k)/2,(h-H*k)/2,W*k,H*k)}
+ else{const vs=recLive();if(!vs.length)return;x.fillStyle='#0f172a';x.fillRect(0,0,w,h);const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;
+  vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
+ if(rec&&rec.vt&&rec.vt.requestFrame)try{rec.vt.requestFrame()}catch(e){}}
 $('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(!S.recOn)return toast(t('err.rec.off'));
  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mt)return toast(t('err.rec.browser'));
- const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),rc=document.createElement('canvas');rc.width=1280;rc.height=720;
- let mr;try{mr=new MediaRecorder(new MediaStream([...rc.captureStream(15).getVideoTracks(),...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
+ const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),keep=ctx.createGain();keep.gain.value=0;keep.connect(ctx.destination);const rc=document.createElement('canvas');rc.width=1280;rc.height=720;
+ let mr,vt;try{vt=rc.captureStream(15).getVideoTracks()[0];mr=new MediaRecorder(new MediaStream([vt,...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
  let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){ctx.close();return}
  if(!id){ctx.close();return toast(t('err.nosave'))}
- const r=rec={ctx,dest,id,n:0,q:Promise.resolve(),bad:0,mr};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));
+ const box=document.createElement('div');box.className='reccap';document.body.appendChild(box);
+ const r=rec={ctx,dest,keep,id,n:0,q:Promise.resolve(),bad:0,mr,vt,rc,box,els:new Map(),total:0,sent:0,live:0,stopped:0};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));setView(view);
  r.tm=setInterval(()=>frame(rc),66);
- mr.ondataavailable=e=>{if(!e.data||!e.data.size)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c.'+(mt.includes('mp4')?'mp4':'webm'));if(window.CSRF)fd.append('csrf',window.CSRF);
-  r.q=r.q.then(()=>fetch('api.php?action=rec_chunk',{method:'POST',body:fd,credentials:'same-origin',headers:window.CSRF?{'X-CSRF':window.CSRF}:{}}).then(res=>{if(!res.ok)throw 0})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
+ mr.ondataavailable=e=>{if(!e.data||!e.data.size)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const sz=e.data.size;r.total+=sz;const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c.'+(mt.includes('mp4')?'mp4':'webm'));if(window.CSRF)fd.append('csrf',window.CSRF);
+  r.q=r.q.then(()=>new Promise((ok,no)=>{const base=r.sent,x=new XMLHttpRequest();x.open('POST','api.php?action=rec_chunk');x.withCredentials=true;if(window.CSRF)x.setRequestHeader('X-CSRF',window.CSRF);x.upload.onprogress=ev=>{if(!ev.lengthComputable)return;r.live=base+Math.min(sz,ev.loaded||0);if(r.stopped)recPaint()};x.onload=()=>{if(x.status>=200&&x.status<300){r.sent=base+sz;r.live=r.sent;if(r.stopped)recPaint();ok()}else no()};x.onerror=no;x.send(fd)})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
  mr.onerror=()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(e){}};
- mr.onstop=()=>{clearInterval(r.tm);const fin=()=>{try{ctx.close()}catch(e){}rec=null;$('#bRec').removeClass('rec');toast(t(r.bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
- try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();rec=null;return toast(t('err.rec.browser'))}
+ mr.onstop=()=>{clearInterval(r.tm);r.stopped=1;recPaint();const fin=()=>{try{ctx.close()}catch(e){}r.els.forEach(v=>{try{v.pause();v.srcObject=null}catch(e){}});try{r.box.remove()}catch(e){}const bad=r.bad;rec=null;recDone();$('#bRec').removeClass('rec');setView(view);if(leaveAfter){leaveAfter=0;toast(t(bad?'err.nosave':'rec.saved'));if(!bad)goOut();return}toast(t(bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
+ try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();try{box.remove()}catch(ex){}rec=null;return toast(t('err.rec.browser'))}
+ try{history.pushState({rec:1},'')}catch(e){}
  $('#bRec').addClass('rec');toast(t('rec.started'))});
 });

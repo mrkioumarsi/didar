@@ -175,7 +175,9 @@ html[dir=ltr] .sw input:checked+i:before{right:auto;left:21px}
 .langs a.act{background:var(--pr);color:#fff;border-color:var(--pr)}
 #media.offstage,#board.offstage{position:fixed;left:-12000px;top:0;width:1280px;height:720px;opacity:0;pointer-events:none;display:flex!important;z-index:-1;overflow:hidden}
 .recbar{position:relative;flex:none;height:28px;margin:0 12px 8px;background:#eef1f6;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
-.recbar .recfill{position:absolute;left:0;right:auto;bottom:0;height:4px;width:0;background:var(--pr);display:block}
+.recbar .recfill{position:absolute;left:0;right:auto;bottom:0;height:100%;width:0;background:var(--pr);opacity:.28;display:block}
+.reccap{position:fixed;left:0;bottom:0;width:8px;height:8px;overflow:hidden;opacity:.03;pointer-events:none;z-index:-1}.reccap video{width:8px;height:8px}
+.rb:disabled{opacity:.4;pointer-events:none}
 .recbar span{position:relative;z-index:1;display:block;text-align:center;line-height:28px;font-size:.78rem}
 .recitem{border-bottom:1px solid var(--bd)}.recitem:last-child{border-bottom:0}
 .recrow{display:flex;align-items:center;gap:8px}.recopen{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 2px;border:0;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}
