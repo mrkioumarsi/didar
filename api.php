@@ -106,7 +106,9 @@ try{
  case 'update_check':need_admin();out(update_info(!empty($P['force'])));
  case 'update_apply':
   need_admin();
-  $r=update_apply();
+  $again=(string)($P['reinstall']??'')==='1';
+  if($again&&(string)($P['confirm']??'')!=='1') fail(t('err.forbidden'));
+  $r=update_apply($again);
   if(empty($r['ok'])) fail(t(($r['error']??'')==='perm'?'upd.perm':(($r['error']??'')==='net'?'upd.net':'upd.fail')));
   out($r);
  case 'backup':need_admin();backup_send();

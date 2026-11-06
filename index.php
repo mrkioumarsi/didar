@@ -64,7 +64,7 @@ $cal=app_cal();
 <p class="hint"><?=t('wipe.users.d')?></p><button type="button" class="btn danger sm" id="swusers"><?=t('wipe.users')?></button></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="arrow" data-s="22"></span><div><h3><?=t('upd.title')?></h3><p class="mu"><?=t('upd.sub')?></p></div></div>
 <p class="hint" id="updnote"><?=t('upd.cur',['v'=>locn(trim((string)@file_get_contents(__DIR__.'/VERSION')))])?></p>
-<div class="inl"><button type="button" class="btn ghost sm" id="updchk"><?=t('upd.check')?></button><button type="button" class="btn sm" id="updgo" disabled><?=t('upd.apply')?></button></div></div>
+<div class="inl"><button type="button" class="btn ghost sm" id="updchk"><?=t('upd.check')?></button><button type="button" class="btn sm" id="updgo" disabled><?=t('upd.apply')?></button><button type="button" class="btn ghost sm" id="updre"><?=t('upd.reinstall')?></button></div></div>
 </div>
 <div class="sbar"><button class="btn" id="ss"><?=t('set.save')?></button></div>
 </section></div>

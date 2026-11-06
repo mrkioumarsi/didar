@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then echo "Run this script as root"; exit 1; fi
+if [ "$#" -gt 1 ]; then exit 1; fi
+if [ "${1:-}" = "reinstall" ]; then
+ export DIDAR_REINSTALL=1
+elif [ -n "${1:-}" ]; then
+ exit 1
+fi
 APPDIR=""
 if [ -f /etc/didar/appdir ]; then APPDIR="$(tr -d '\r\n' < /etc/didar/appdir)"; fi
 if ! printf '%s' "$APPDIR" | grep -Eq '^/[A-Za-z0-9._/-]+$'; then echo "Application folder was not found"; exit 1; fi

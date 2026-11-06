@@ -253,21 +253,37 @@ function update_finish($root){
  @unlink($root.'/storage/update.json');
  if(function_exists('opcache_reset')) @opcache_reset();
 }
-function update_pull($root){
+function update_pull($root,$reinstall=false){
  @set_time_limit(180);
- $rel=update_remote();
- if(!$rel) return false;
- if(version_compare($rel['ver'],app_version(),'<=')) return true;
+ $cur=app_version();
+ if(!preg_match('/^\d+\.\d+\.\d+$/',$cur)) return false;
+ $nonce='';
+ if($reinstall){
+  $nonce=trim((string)@file_get_contents($root.'/storage/reinstall.req'));
+  if(!preg_match('/^[a-f0-9]{16}$/',$nonce)) return false;
+  $tag='v'.$cur;
+ }else{
+  $rel=update_remote();
+  if(!$rel) return false;
+  if(version_compare($rel['ver'],$cur,'<=')) return true;
+  $tag=$rel['tag'];
+ }
  $zip=rtrim(sys_get_temp_dir(),'\\/').'/didar-up-'.bin2hex(random_bytes(4)).'.zip';
  $src='';
  $ok=false;
- if(gh_save('https://codeload.github.com/mrkioumarsi/didar/zip/refs/tags/'.$rel['tag'],$zip)){
+ if(gh_save('https://codeload.github.com/mrkioumarsi/didar/zip/refs/tags/'.$tag,$zip)){
   $src=update_unzip($zip);
   if($src!==''&&update_copy_tree($src,$root)) $ok=true;
  }
  if($src!=='') didar_rrmdir(dirname($src));
  @unlink($zip);
  if(!$ok) return false;
+ if($reinstall){
+  $got=trim((string)@file_get_contents($root.'/VERSION'));
+  if($got!==$cur) return false;
+  if(@file_put_contents($root.'/storage/reinstall.stamp',$nonce,LOCK_EX)===false) return false;
+  @unlink($root.'/storage/reinstall.req');
+ }
  update_finish($root);
  return is_file($root.'/VERSION');
 }
@@ -276,7 +292,7 @@ function update_apply_root(){
  if(function_exists('posix_geteuid')&&posix_geteuid()!==0) return false;
  $root=didar_app();
  if($root==='') return false;
- if(!update_pull($root)) return false;
+ if(!update_pull($root,getenv('DIDAR_REINSTALL')==='1')) return false;
  didar_fix_tree($root);
  if(getenv('DIDAR_UPDATE')==='1') return true;
  if(didar_fn('exec')){
@@ -285,8 +301,40 @@ function update_apply_root(){
  }
  return true;
 }
-function update_apply(){
+function update_apply($reinstall=false){
  @set_time_limit(180);
+ if($reinstall){
+  $cur=app_version();
+  $root=dirname(__DIR__);
+  if(!preg_match('/^\d+\.\d+\.\d+$/',$cur)||!is_dir($root.'/storage')) return ['ok'=>0,'error'=>'fail'];
+  $nonce=bin2hex(random_bytes(8));
+  if(@file_put_contents($root.'/storage/reinstall.req',$nonce,LOCK_EX)===false) return ['ok'=>0,'error'=>'perm'];
+  $how=update_can();
+  $stamp='';
+  if($how==='sudo'){
+   $out=[];$code=1;
+   exec('sudo -n /usr/local/sbin/didar-update reinstall 2>&1',$out,$code);
+   $stamp=is_file($root.'/storage/reinstall.stamp')?trim((string)@file_get_contents($root.'/storage/reinstall.stamp')):'';
+   @unlink($root.'/storage/reinstall.req');
+   @unlink($root.'/storage/reinstall.stamp');
+   if($code!==0||!hash_equals($nonce,$stamp)){
+    if(function_exists('log_err')) log_err(new RuntimeException('reinstall '.substr(implode(' ',$out),0,300)));
+    return ['ok'=>0,'error'=>'fail'];
+   }
+   return ['ok'=>1,'cur'=>app_version()];
+  }
+  if($how==='write'){
+   $ok=update_pull($root,true);
+   $stamp=is_file($root.'/storage/reinstall.stamp')?trim((string)@file_get_contents($root.'/storage/reinstall.stamp')):'';
+   @unlink($root.'/storage/reinstall.req');
+   @unlink($root.'/storage/reinstall.stamp');
+   if(!$ok||!hash_equals($nonce,$stamp)) return ['ok'=>0,'error'=>'fail'];
+   if(function_exists('ensure_schema')){try{ensure_schema();}catch(Throwable $e){}}
+   return ['ok'=>1,'cur'=>app_version()];
+  }
+  @unlink($root.'/storage/reinstall.req');
+  return ['ok'=>0,'error'=>'perm'];
+ }
  $info=update_info(true);
  if(empty($info['ok'])) return ['ok'=>0,'error'=>'net'];
  if(empty($info['newer'])) return ['ok'=>1,'cur'=>$info['cur'],'latest'=>$info['latest']];

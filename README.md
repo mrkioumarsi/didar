@@ -18,7 +18,7 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 On the server, run this. It downloads the release, then installs:
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.4 && tar -xzf didar.tar.gz && cd didar-1.0.4 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
+wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.5 && tar -xzf didar.tar.gz && cd didar-1.0.5 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
 ```
 
 Put your own admin username and password in that command. The password must be at least 4 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
