@@ -39,9 +39,9 @@ Running the script again clears the Didar database and installs from the start. 
 - Settings can download a full database backup.
 - Settings checks the GitHub release. When you confirm, it replaces the app files. The database, `config.local.php`, and uploaded files stay.
 
-## Support
+## Donate
 
-USDT on BNB Smart Chain (BEP20):
+Financial support is welcome. USDT on BNB Smart Chain (BEP20):
 
 ```
 0xAec9F6Ad80940a50e35F453d3354CA8379d0CFaD

@@ -39,9 +39,9 @@ wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/
 - از تنظیمات می‌شود بکاپ کامل پایگاه داده را گرفت.
 - تنظیمات رلیز گیت‌هاب را چک می‌کند و با تأیید شما فایل‌های برنامه را عوض می‌کند. پایگاه داده، `config.local.php` و فایل‌های بارگذاری‌شده می‌مانند.
 
-## حمایت
+## حمایت مالی
 
-تتر روی شبکه BNB Smart Chain (BEP20):
+حمایت مالی پذیرفته می‌شود. تتر روی شبکه BNB Smart Chain (BEP20):
 
 ```
 0xAec9F6Ad80940a50e35F453d3354CA8379d0CFaD
