@@ -23,8 +23,8 @@ input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--pr);-we
 .btn.ib2{width:40px;height:40px;padding:0;background:#fff;color:var(--tx2);border-color:var(--bd2);box-shadow:var(--s1)}.btn.ib2:hover{color:var(--pr);border-color:var(--pr);background:var(--pr-s)}.btn.ib2.danger{color:var(--rd);background:#fff}.btn.ib2.danger:hover{background:var(--rd-s);border-color:var(--rd)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:20px;background:#eef1f6;color:var(--tx2);font-size:.75rem;font-weight:500;white-space:nowrap}.badge.pr{background:var(--pr-s);color:var(--pr)}.badge.gr{background:var(--gr-s);color:var(--gr)}
 .card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r3);padding:20px;box-shadow:var(--s1)}
-.loginwrap{min-height:100vh;min-height:100dvh;display:flex !important;align-items:center;justify-content:center;padding:16px;background:radial-gradient(1000px 500px at 80% -10%,#e3e6ff,transparent),var(--bg)}
-#login[hidden]{display:none !important}
+.loginwrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(1000px 500px at 80% -10%,#e3e6ff,transparent),var(--bg)}
+#login[hidden],#join[hidden]{display:none !important}
 .login{width:100%;max-width:390px;text-align:center;box-shadow:var(--s2);padding:28px 24px}.login img{width:68px;height:68px;border-radius:18px;box-shadow:var(--s2)}.login h2{margin:12px 0 2px;font-size:1.3rem}.login label{text-align:right}
 .top{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;min-height:64px;padding:env(safe-area-inset-top) 24px 0;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.05rem}.brand img{width:34px;height:34px;border-radius:10px}.usr{display:flex;gap:10px;align-items:center}.chip{padding:5px 14px;background:#eef1f6;border-radius:20px;font-size:.85rem;color:var(--tx2)}

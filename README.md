@@ -35,7 +35,7 @@ Running the script again clears the Didar database and installs from the start. 
 - Dates follow the calendar and time zone in Settings.
 - Password strength is in Settings: low, medium, or high.
 - The online count comes from the app. CPU, memory, and bandwidth show up when the server can read them.
-- A room manager can record the meeting. The file is listed on that room and can be downloaded from the room card.
+- A room manager can record the meeting. The file is listed on that room and plays from the room card.
 - Settings can download a full database backup.
 - Settings checks the GitHub release. When you confirm, it replaces the app files. The database, `config.local.php`, and uploaded files stay.
 

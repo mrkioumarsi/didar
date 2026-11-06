@@ -12,7 +12,8 @@ function doJoin(){$('#joinBtn').addClass('na');$('#jerr').addClass('na');
  $.ajax({url:'api.php?action=join',method:'POST',dataType:'json',data:{code:R.code,name:$('#gname').val()||''}}).done(r=>{S=r;sSig=r.sig;if(S.mode==='sfu')sfuP=sfuStart();loop()})
  .fail(x=>{$('#jmsg').addClass('na');$('#jerr').text((x.responseJSON||{}).error||t('err.generic')).removeClass('na');$('#joinBtn').removeClass('na')})}
 $('#joinBtn').click(doJoin);if($('#joinBtn').data('auto'))doJoin();
-function loop(){api('poll',{sig:sSig,chat:sChat}).done(handle).always(()=>setTimeout(loop,S.mode==='sfu'?1200:800))}
+function enter(){if(shown)return;shown=1;const j=document.getElementById('join'),rm=document.getElementById('room');if(j)j.hidden=true;if(rm)rm.hidden=false;sig(0,'wbreq',1)}
+function loop(){api('poll',{sig:sSig,chat:sChat}).done(r=>{try{handle(r)}catch(e){enter()}}).always(()=>setTimeout(loop,S.mode==='sfu'?1200:800))}
 function handle(r){parts=r.parts;S.me=parts.find(p=>p.id==S.pid)||S.me||{};if(Date.now()<(S.lock||0)&&S.me.id==S.pid){S.me.mic_on=L.mic?1:0;S.me.cam_on=L.cam?1:0;S.me.screen_on=mask()}S.chatOn=+r.room.chat_enabled;S.recOn=+r.room.rec_enabled;const mg=+S.me.mgr?1:0;
  r.sigs.forEach(s=>{sSig=Math.max(sSig,+s.id);chain=chain.then(()=>onSig(s)).catch(console.error)});
  r.cdel.forEach(id=>$('#m'+id).remove());
@@ -22,7 +23,7 @@ function handle(r){parts=r.parts;S.me=parts.find(p=>p.id==S.pid)||S.me||{};if(Da
  else{parts.forEach(p=>{if(p.id!=S.pid&&!pcs[p.id]&&S.pid>p.id)connect(p.id)});Object.keys(pcs).forEach(id=>{if(!parts.some(p=>p.id==id))drop(id)});}
  if(S.mode!=='sfu'&&parts.length>8&&!warned){warned=1;toast(t('mode.p2p.many'))}
  const can=k=>mg||+S.me['can_'+k];if(!can('mic')&&L.mic)stopMic();if(!can('cam')&&L.cam)stopCam();if(!can('screen'))L.scr.forEach((tr,k)=>tr&&stopScr(k));
- ui();if(!shown){shown=1;$('#join').hide();$('#room').show();sig(0,'wbreq',1)}}
+ try{ui()}catch(e){}enter()}
 function sfuStart(){
  if(!window.LivekitClient){toast(t('err.sfu.sdk'));return Promise.resolve()}
  const C=LivekitClient;
