@@ -393,6 +393,14 @@ try{
   @unlink(__DIR__.'/storage/'.basename($r['file']));
   q("DELETE FROM recordings WHERE id=?",[$r['id']]);
   out(['ok'=>1]);
+ case 'rec_clear':
+  need_admin();
+  if((string)($P['confirm']??'')!=='1')fail(t('err.forbidden'));
+  $rid=(int)($P['room_id']??0);
+  if($rid<1)fail(t('err.forbidden'));
+  foreach(q("SELECT file FROM recordings WHERE room_id=?",[$rid])->fetchAll() as $row){$fn=basename((string)$row['file']);if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn))@unlink(__DIR__.'/storage/'.$fn);}
+  q("DELETE FROM recordings WHERE room_id=?",[$rid]);
+  out(['ok'=>1]);
  case 'rec_dl':
   rec_send((int)($_GET['id']??0),!empty($_GET['dl']));
  case 'attendance_list':

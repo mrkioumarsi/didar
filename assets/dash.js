@@ -54,8 +54,14 @@ const filterRooms=()=>{const q=$('#rsq').val().trim();$('#rl .rc').each(function
 $('#rsq').on('input',filterRooms);
 $('#rl').on('click','[data-a]',function(){const a=$(this).data('a'),i=$(this).data('i');
  if(a=='att')attendance(RM[i]);if(a=='rec')recs(i);if(a=='set')settings(RM[i])});
-function recs(i){post('rec_list',{room_id:i}).done(r=>{const md=modal('<h3>'+t('rec.title')+'</h3>'+(r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id);return `<div class="mrow"><video class="recplay" controls playsinline preload="metadata" src="${src}"></video><div class="mh"><div class="gx">${dtfmt(c.created)}<div class="mu">${locn((c.size/1048576).toFixed(1))} ${t('rec.mb')}</div></div>${r.mgr?`<button class="btn sm danger" data-d="${c.id}">${ic('trash',16)}</button>`:''}</div></div>`}).join('')||'<p class="mu">'+t('rec.empty')+'</p>'),'lg');
- md.on('click','[data-d]',function(){confirm(t('confirm.rec'))&&post('rec_del',{id:$(this).data('d')}).done(()=>{md.remove();recs(i)})})})}
+function recs(i){post('rec_list',{room_id:i}).done(r=>{const head='<div class="inl rechead"><h3 class="gx">'+t('rec.title')+'</h3>'+(isAd()&&r.recs.length?'<button type="button" class="btn sm danger" id="recall">'+t('rec.delall')+'</button>':'')+'</div>';
+ const body=r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id);return '<div class="recitem"><button type="button" class="recstage" data-src="'+src+'"><span class="recgo"></span><span>'+t('rec.play')+'</span></button><div class="recmeta"><div class="gx">'+dtfmt(c.created)+'<div class="mu">'+locn((c.size/1048576).toFixed(1))+' '+t('rec.mb')+'</div></div>'+(r.mgr?'<button type="button" class="btn sm danger" data-d="'+(+c.id)+'">'+ic('trash',16)+'</button>':'')+'</div></div>'}).join('')||'<p class="mu">'+t('rec.empty')+'</p>';
+ const md=modal(head+body,'lg');
+ md.on('click','.recstage',function(){const src=this.getAttribute('data-src');
+  md.find('video.recplay').each(function(){try{this.pause()}catch(e){}const s=this.getAttribute('data-src'),b=document.createElement('button');b.type='button';b.className='recstage';b.setAttribute('data-src',s);b.innerHTML='<span class="recgo"></span><span>'+t('rec.play')+'</span>';this.replaceWith(b)});
+  const v=document.createElement('video');v.className='recplay';v.controls=true;v.playsInline=true;v.setAttribute('data-src',src);v.src=src;this.replaceWith(v);v.play().catch(function(){})});
+ md.on('click','[data-d]',function(){confirm(t('confirm.rec'))&&post('rec_del',{id:$(this).data('d')}).done(()=>{md.remove();recs(i)})});
+ md.on('click','#recall',function(){confirm(t('confirm.recall'))&&post('rec_clear',{room_id:i,confirm:1}).done(()=>{md.remove();recs(i)})})})}
 function picker($el,room,onChange){const sel=new Set();let tm;
  $el.html(`<div class="srch">${ic('search',18)}<input type="search" placeholder="${t('member.search')}"></div><div class="plist"></div>`);
  const load=()=>post('users_search',{q:$el.find('input').val(),room_id:room||0}).done(r=>$el.find('.plist').html(r.users.map(u=>`<label class="pk"><input type="checkbox" value="${u.id}" ${sel.has(String(u.id))?'checked':''}>${avh(u,32)}<span class="gx">${esc(u.name)} <span class="mu ltr">${esc(u.username)}</span></span></label>`).join('')||'<p class="mu">'+t('member.none')+'</p>'));
