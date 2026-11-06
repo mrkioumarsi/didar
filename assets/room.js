@@ -178,7 +178,7 @@ function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;
  if(rec&&rec.vt&&rec.vt.requestFrame)try{rec.vt.requestFrame()}catch(e){}}
 $('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(!S.recOn)return toast(t('err.rec.off'));
  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mt)return toast(t('err.rec.browser'));
- const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),keep=ctx.createGain();keep.gain.value=0;keep.connect(ctx.destination);const rc=document.createElement('canvas');rc.width=1280;rc.height=720;
+ const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),keep=ctx.createGain();keep.gain.value=0;keep.connect(ctx.destination);const bias=ctx.createConstantSource();bias.offset.value=0.001;bias.connect(dest);bias.start();const rc=document.createElement('canvas');rc.width=1280;rc.height=720;
  let mr,vt;try{vt=rc.captureStream(15).getVideoTracks()[0];mr=new MediaRecorder(new MediaStream([vt,...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
  let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){ctx.close();return}
  if(!id){ctx.close();return toast(t('err.nosave'))}
