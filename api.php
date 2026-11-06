@@ -383,7 +383,7 @@ try{
  case 'rec_finish':
   $p=part();
   if(!$p['mgr']) fail(t('err.forbidden'));
-  rec_finish_file((int)$P['id'],(int)$p['room_id']);
+  if(!rec_finish_file((int)$P['id'],(int)$p['room_id'])) fail(t('err.nosave'));
   out(['ok'=>1]);
  case 'rec_list':
   if(!room_access((int)$P['room_id']))fail(t('err.forbidden'));

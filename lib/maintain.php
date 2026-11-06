@@ -541,29 +541,30 @@ function rec_finish_file($id,$room){
   if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4\.part$/',$bn)&&is_file($old)&&filemtime($old)<time()-86400) @unlink($old);
  }
  $r=q("SELECT * FROM recordings WHERE id=? AND room_id=?",[$id,$room])->fetch();
- if(!$r) return;
+ if(!$r) return false;
  $fn=basename($r['file']);
- if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)) return;
+ if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)) return false;
  $src=$dir.'/'.$fn;
- if(!is_file($src)||filesize($src)<32) return;
+ if(!is_file($src)||filesize($src)<32){if(is_file($src))@unlink($src);q("DELETE FROM recordings WHERE id=? AND room_id=?",[$id,$room]);return false;}
  $bin='';
  foreach(['/usr/bin/ffmpeg','/usr/local/bin/ffmpeg'] as $b) if(is_executable($b)){$bin=$b;break;}
- if($bin===''||!didar_fn('proc_open')) return;
+ if($bin===''||!didar_fn('proc_open')) return true;
  $dst='rec_'.(int)$r['room_id'].'_'.time().'_'.bin2hex(random_bytes(8)).'.mp4';
- if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4$/',$dst)) return;
+ if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4$/',$dst)) return true;
  $tmp=$dir.'/'.$dst.'.part';
  $proc=@proc_open([$bin,'-y','-fflags','+genpts','-i',$src,'-c:v','libx264','-preset','veryfast','-crf','23','-c:a','aac','-movflags','+faststart',$tmp],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
- if(!is_resource($proc)){@unlink($tmp);return;}
+ if(!is_resource($proc)){@unlink($tmp);return true;}
  fclose($pipes[0]);
  stream_get_contents($pipes[1]);
  stream_get_contents($pipes[2]);
  fclose($pipes[1]);
  fclose($pipes[2]);
  $code=proc_close($proc);
- if($code!==0||!is_file($tmp)||filesize($tmp)<32){@unlink($tmp);return;}
+ if($code!==0||!is_file($tmp)||filesize($tmp)<32){@unlink($tmp);return true;}
  $final=$dir.'/'.$dst;
- if(!@rename($tmp,$final)){@unlink($tmp);return;}
+ if(!@rename($tmp,$final)){@unlink($tmp);return true;}
  if($final!==$src) @unlink($src);
  clearstatcache(true,$final);
  q("UPDATE recordings SET file=?,size=? WHERE id=?",[$dst,(int)filesize($final),$r['id']]);
+ return true;
 }
