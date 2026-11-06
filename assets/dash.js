@@ -54,13 +54,13 @@ const filterRooms=()=>{const q=$('#rsq').val().trim();$('#rl .rc').each(function
 $('#rsq').on('input',filterRooms);
 $('#rl').on('click','[data-a]',function(){const a=$(this).data('a'),i=$(this).data('i');
  if(a=='att')attendance(RM[i]);if(a=='rec')recs(i);if(a=='set')settings(RM[i])});
-function recs(i){post('rec_list',{room_id:i}).done(r=>{const body=r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id);return '<div class="recitem"><div class="recrow"><button type="button" class="recopen" data-src="'+src+'"><span class="recgo"></span><span class="gx">'+dtfmt(c.created)+'<span class="mu">'+locn((c.size/1048576).toFixed(1))+' '+t('rec.mb')+'</span></span><span class="chev">'+ic('chev',18)+'</span></button>'+(r.mgr?'<button type="button" class="btn sm danger" data-d="'+(+c.id)+'">'+ic('trash',16)+'</button>':'')+'</div><div class="recdrop" hidden></div></div>'}).join('')||'<p class="mu">'+t('rec.empty')+'</p>';
+function recs(i){post('rec_list',{room_id:i}).done(r=>{const body=r.recs.map(c=>{const src='api.php?action=rec_dl&id='+encodeURIComponent(c.id)+'&v='+encodeURIComponent(c.size||0);return '<div class="recitem"><div class="recrow"><button type="button" class="recopen" data-src="'+src+'"><span class="recgo"></span><span class="gx">'+dtfmt(c.created)+'<span class="mu">'+locn((c.size/1048576).toFixed(1))+' '+t('rec.mb')+'</span></span><span class="chev">'+ic('chev',18)+'</span></button>'+(r.mgr?'<button type="button" class="btn sm danger" data-d="'+(+c.id)+'">'+ic('trash',16)+'</button>':'')+'</div><div class="recdrop" hidden></div></div>'}).join('')||'<p class="mu">'+t('rec.empty')+'</p>';
  const foot=isAd()&&r.recs.length?'<button type="button" class="btn danger block" id="recall">'+t('rec.delall')+'</button>':'';
  const md=modal('<h3>'+t('rec.title')+'</h3>'+body+foot,'lg');
- md.on('click','.recopen',function(){const row=$(this).closest('.recitem'),drop=row.find('.recdrop'),open=drop.is(':hidden'),src=this.getAttribute('data-src');
+ md.on('click','.recopen',function(){const row=$(this).closest('.recitem'),drop=row.find('.recdrop'),open=row.hasClass('open'),src=this.getAttribute('data-src');
   md.find('video').each(function(){try{this.pause()}catch(e){}});md.find('.recitem').removeClass('open');md.find('.recdrop').attr('hidden',true).empty();
-  if(!open)return;row.addClass('open');drop.removeAttr('hidden');
-  const v=document.createElement('video');v.className='recplay';v.controls=true;v.playsInline=true;v.preload='metadata';v.src=src;drop[0].appendChild(v);v.play().catch(function(){})});
+  if(open)return;row.addClass('open');drop.removeAttr('hidden');
+  const v=document.createElement('video');v.className='recplay';v.controls=true;v.playsInline=true;v.preload='auto';v.src=src;drop[0].appendChild(v);v.play().catch(function(){})});
  md.on('click','[data-d]',function(){confirm(t('confirm.rec'))&&post('rec_del',{id:$(this).data('d')}).done(()=>{md.remove();recs(i)})});
  md.on('click','#recall',function(){confirm(t('confirm.recall'))&&post('rec_clear',{room_id:i,confirm:1}).done(()=>{md.remove();recs(i)})})})}
 function picker($el,room,onChange){const sel=new Set();let tm;

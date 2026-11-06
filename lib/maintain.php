@@ -508,26 +508,12 @@ function rec_send($id,$dl){
  header('Content-Type: '.($ext==='mp4'?'video/mp4':'video/webm'));
  header('Content-Disposition: inline; filename="'.$fn.'"');
  header('X-Content-Type-Options: nosniff');
- header('Accept-Ranges: bytes');
  header('Cache-Control: private, max-age=86400');
- $start=0;$end=$size-1;$code=200;
- if(isset($_SERVER['HTTP_RANGE'])&&preg_match('/^bytes=(\d*)-(\d*)$/',trim((string)$_SERVER['HTTP_RANGE']),$m)){
-  if($m[1]===''&&$m[2]===''){http_response_code(416);header('Content-Range: bytes */'.$size);exit;}
-  if($m[1]===''){$start=max(0,$size-(int)$m[2]);$end=$size-1;}
-  else{$start=(int)$m[1];$end=$m[2]===''?$size-1:(int)$m[2];}
-  if($start<0||$start>$end||$start>=$size){http_response_code(416);header('Content-Range: bytes */'.$size);exit;}
-  if($end>=$size)$end=$size-1;
-  $code=206;
- }
- $len=$end-$start+1;
- http_response_code($code);
- if($code===206)header('Content-Range: bytes '.$start.'-'.$end.'/'.$size);
- header('Content-Length: '.$len);
+ header('Content-Length: '.$size);
+ http_response_code(200);
  $fh=fopen($fp,'rb');
  if(!$fh){http_response_code(404);die(t('err.nofile'));}
- if($start>0)fseek($fh,$start);
- $left=$len;
- while($left>0&&!feof($fh)&&!connection_aborted()){$buf=fread($fh,(int)min(1048576,$left));if($buf===false||$buf==='')break;echo $buf;$left-=strlen($buf);}
+ while(!feof($fh)&&!connection_aborted()){$buf=fread($fh,1048576);if($buf===false||$buf==='')break;echo $buf;}
  fclose($fh);
  exit;
 }

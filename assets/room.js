@@ -143,7 +143,7 @@ function recDone(){$('#recbar').addClass('na');$('#recbar .recfill').css('width'
 $('#bLeave').click(()=>{if(rec){leaveAfter=1;$('#bLeave').prop('disabled',true);if(rec.mr&&rec.mr.state==='recording'){try{rec.mr.stop()}catch(e){}}recPaint();toast(t('rec.block'));return}goOut()});
 addEventListener('beforeunload',e=>{if(!rec)return;e.preventDefault();e.returnValue=''});
 addEventListener('popstate',()=>{if(!rec)return;try{history.pushState({rec:1},'')}catch(e){}if(rec.stopped)recPaint();toast(t('rec.block'))});
-document.addEventListener('visibilitychange',()=>{if(!rec||!rec.rc)return;if(rec.ctx&&rec.ctx.resume)rec.ctx.resume();frame(rec.rc)});
+document.addEventListener('visibilitychange',()=>{if(!rec||!rec.rc)return;if(rec.ctx&&rec.ctx.resume)rec.ctx.resume();$('#scrs video,#tiles video').each(function(){if(this.paused&&this.play)this.play().catch(function(){})});frame(rec.rc)});
 addEventListener('pagehide',()=>{if(rec||!S.pid||!navigator.sendBeacon)return;const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)});
 const cv=$('#cv')[0],cx=cv.getContext('2d');let objs=[],gotFull=0,tool='pen',col='#111827',sz=6,cur=null,seq=0;
 const canB=()=>+S.me.mgr||+S.me.can_board,SHAPE=['line','arrow','rect','ell'];
@@ -172,16 +172,9 @@ $('#wgrid').click(function(){$(this).toggleClass('on');$('#cv').toggleClass('ng'
 $('#wclr').click(()=>confirm(t('confirm.board'))&&(objs=[],redraw(),sig(0,'wbclear',1)));
 $('#wsave').click(()=>{const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);x.drawImage(cv,0,0);const a=document.createElement('a');a.download='whiteboard.png';a.href=c.toDataURL('image/png');a.click()});
 function mixAdd(st){if(rec&&st&&st.getAudioTracks().length)try{rec.ctx.createMediaStreamSource(st).connect(rec.dest)}catch(e){}}
-function recVid(tr){if(!rec||!tr||tr.readyState!=='live')return null;let v=rec.els.get(tr);if(v)return v;v=document.createElement('video');v.muted=true;v.autoplay=true;v.playsInline=true;v.srcObject=new MediaStream([tr]);rec.box.appendChild(v);if(v.play)v.play().catch(()=>{});rec.els.set(tr,v);return v}
-function recLive(){if(!rec)return [];const scr=[],cam=[],add=(st,bag)=>{const tr=st&&st.getVideoTracks&&st.getVideoTracks()[0],v=recVid(tr);if(v)bag.push(v)};
- L.scrS.forEach(st=>add(st,scr));Object.values(pcs).forEach(o=>{if(o.vscr&&o.vscr.mediaStreamTrack){const v=recVid(o.vscr.mediaStreamTrack);if(v)scr.push(v)}else if(o.rs)add(o.rs[2],scr);if(o.rs){add(o.rs[3],scr);add(o.rs[4],scr)}});
- add(L.camS,cam);Object.values(pcs).forEach(o=>{if(o.vcam&&o.vcam.mediaStreamTrack){const v=recVid(o.vcam.mediaStreamTrack);if(v)cam.push(v)}else if(o.rs)add(o.rs[1],cam)});
- rec.els.forEach((v,tr)=>{if(tr.readyState==='live')return;try{v.pause()}catch(e){}v.remove();rec.els.delete(tr)});
- return (scr.length?scr:cam).filter(v=>v.readyState>=2&&v.videoWidth)}
 function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;
  if(view=='board'){x.fillStyle='#fff';x.fillRect(0,0,w,h);const k=Math.min(w/W,h/H);x.drawImage(cv,(w-W*k)/2,(h-H*k)/2,W*k,H*k)}
- else{const vs=recLive();if(!vs.length)return;x.fillStyle='#0f172a';x.fillRect(0,0,w,h);const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;
-  vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
+ else{let vs=$('#scrs video').toArray();if(!vs.length)vs=$('#tiles video').toArray();vs=vs.filter(v=>v.readyState>=2&&v.videoWidth);if(!vs.length){if(rec&&rec.vt&&rec.vt.requestFrame)try{rec.vt.requestFrame()}catch(e){}return}x.fillStyle='#0f172a';x.fillRect(0,0,w,h);const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
  if(rec&&rec.vt&&rec.vt.requestFrame)try{rec.vt.requestFrame()}catch(e){}}
 $('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(!S.recOn)return toast(t('err.rec.off'));
  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mt)return toast(t('err.rec.browser'));
@@ -189,14 +182,13 @@ $('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(
  let mr,vt;try{vt=rc.captureStream(15).getVideoTracks()[0];mr=new MediaRecorder(new MediaStream([vt,...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
  let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){ctx.close();return}
  if(!id){ctx.close();return toast(t('err.nosave'))}
- const box=document.createElement('div');box.className='reccap';document.body.appendChild(box);
- const r=rec={ctx,dest,keep,id,n:0,q:Promise.resolve(),bad:0,mr,vt,rc,box,els:new Map(),total:0,sent:0,live:0,stopped:0};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));setView(view);
+ const r=rec={ctx,dest,keep,id,n:0,q:Promise.resolve(),bad:0,mr,vt,rc,total:0,sent:0,live:0,stopped:0};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));setView(view);
  r.tm=setInterval(()=>frame(rc),66);
  mr.ondataavailable=e=>{if(!e.data||!e.data.size)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const sz=e.data.size;r.total+=sz;const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c.'+(mt.includes('mp4')?'mp4':'webm'));if(window.CSRF)fd.append('csrf',window.CSRF);
   r.q=r.q.then(()=>new Promise((ok,no)=>{const base=r.sent,x=new XMLHttpRequest();x.open('POST','api.php?action=rec_chunk');x.withCredentials=true;if(window.CSRF)x.setRequestHeader('X-CSRF',window.CSRF);x.upload.onprogress=ev=>{if(!ev.lengthComputable)return;r.live=base+Math.min(sz,ev.loaded||0);if(r.stopped)recPaint()};x.onload=()=>{if(x.status>=200&&x.status<300){r.sent=base+sz;r.live=r.sent;if(r.stopped)recPaint();ok()}else no()};x.onerror=no;x.send(fd)})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
  mr.onerror=()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(e){}};
- mr.onstop=()=>{clearInterval(r.tm);r.stopped=1;recPaint();const fin=()=>{try{ctx.close()}catch(e){}r.els.forEach(v=>{try{v.pause();v.srcObject=null}catch(e){}});try{r.box.remove()}catch(e){}const bad=r.bad;rec=null;recDone();$('#bRec').removeClass('rec');setView(view);if(leaveAfter){leaveAfter=0;toast(t(bad?'err.nosave':'rec.saved'));if(!bad)goOut();return}toast(t(bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
- try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();try{box.remove()}catch(ex){}rec=null;return toast(t('err.rec.browser'))}
+ mr.onstop=()=>{clearInterval(r.tm);r.stopped=1;recPaint();const fin=()=>{try{ctx.close()}catch(e){}const bad=r.bad;rec=null;recDone();$('#bRec').removeClass('rec');setView(view);if(leaveAfter){leaveAfter=0;toast(t(bad?'err.nosave':'rec.saved'));if(!bad)goOut();return}toast(t(bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
+ try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();rec=null;return toast(t('err.rec.browser'))}
  try{history.pushState({rec:1},'')}catch(e){}
  $('#bRec').addClass('rec');toast(t('rec.started'))});
 });
