@@ -14,11 +14,11 @@ sudo bash install/ubuntu.sh --domain meet.example.com --email you@example.com
 
 The script installs Nginx, PHP, MariaDB, a TLS certificate, Coturn for STUN and TURN, and LiveKit. TURN uses port 3478. Encrypted TURN uses port 5349.
 
-Open `https://your-domain/install.php` and create the admin. STUN, TURN, and the large-group mode are already filled in under Settings.
+Open `https://your-domain/install/install.php` and create the admin. STUN, TURN, and the large-group mode are already filled in under Settings.
 
 ## Install on shared hosting
 
-Create an empty MySQL database, upload the files, and open `install.php`. Leave the connection mode on direct. TURN and the media server need the Ubuntu script above.
+Create an empty MySQL database, upload the files, and open `install/install.php`. Leave the connection mode on direct. TURN and the media server need the Ubuntu script above.
 
 ## In the app
 

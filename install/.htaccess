@@ -1,1 +1,3 @@
+<FilesMatch "\.(sql|sh)$">
 Require all denied
+</FilesMatch>

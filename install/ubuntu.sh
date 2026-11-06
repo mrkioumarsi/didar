@@ -253,8 +253,9 @@ ${HTTP2}
   include snippets/fastcgi-php.conf;
   fastcgi_pass unix:${PHPSOCK};
  }
- location ~ ^/(storage|lib|install)/ { deny all; }
- location ~ /(config\.php|config\.local\.php|schema\.sql)\$ { deny all; }
+ location ~ ^/(storage|lib)/ { deny all; }
+ location ~ ^/install/.+\.(sh|sql)\$ { deny all; }
+ location ~ /(config\.php|config\.local\.php)\$ { deny all; }
  location ~ /\. { deny all; }
 }
 EOF
@@ -318,5 +319,5 @@ ufw allow 7881/tcp
 ufw allow 49152:49999/udp
 ufw allow 50000:60000/udp
 ufw --force enable
-echo "Server is ready. Open https://${DOMAIN}/install.php and create the admin."
+echo "Server is ready. Open https://${DOMAIN}/install/install.php and create the admin."
 echo "Secrets stay in /etc/didar/secrets.env and config.local.php."

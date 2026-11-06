@@ -1,6 +1,6 @@
 <?php
 require 'config.php';
-if(!file_exists(__DIR__.'/storage/installed.lock')){header('Location: install.php');exit;}
+if(!file_exists(__DIR__.'/storage/installed.lock')){header('Location: install/install.php');exit;}
 $b=h(setting('brand')?:'دیدار');
 $langs=lang_list();
 $cur=html_lang();
