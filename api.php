@@ -99,6 +99,9 @@ try{
   if($u&&$u['role']==='admin')foreach(['stun','turn_url','turn_user','turn_pass','turn_secret','ice_relay','quality','lk_url','lk_key','lk_secret','calendar','timezone','default_lang'] as $k)$x[$k]=setting($k);
   out($x);
  case 'ice':need_admin();out(['ice'=>ice_servers()]);
+ case 'node':
+  if(!mon_node_ok()){http_response_code(404);exit;}
+  out(mon_machine());
  case 'monitor':need_admin();out(mon_snapshot());
  case 'users_list':need_admin();out(['users'=>q("SELECT u.id,u.username,u.name,u.role,u.bio,u.avatar,u.lang,(SELECT COUNT(*) FROM room_members m WHERE m.user_id=u.id) rooms FROM users u ORDER BY u.id")->fetchAll()]);
  case 'users_search':

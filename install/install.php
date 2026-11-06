@@ -48,7 +48,7 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
   $brand=trim((string)$in('brand','دیدار'));
   $lang=lang_code($in('lang'))?:'en';
   $tz=trim((string)$in('tz','Asia/Tehran'));
-  $cal=$in('cal')==='gregorian'?'gregorian':'jalali';
+  $cal=($in('cal')==='gregorian'||$in('cal')==='jalali')?$in('cal'):(html_lang()==='en'?'gregorian':'jalali');
   if(!in_array($tz,timezone_identifiers_list(),true))$tz='Asia/Tehran';
   if($brand==='')$brand='دیدار';
   if(!preg_match('/^[A-Za-z0-9._:-]+$/',$host)||!preg_match('/^[A-Za-z0-9_]+$/',$name)||!preg_match('/^[A-Za-z0-9_@.-]+$/',$user))$err=t('install.dbfail');
@@ -62,7 +62,7 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
     $raw=file_get_contents(__DIR__.'/schema.sql');
     foreach(array_filter(array_map('trim',explode(';',$raw))) as $sql){if($sql!=='')$pdo->exec($sql);}
     $ins=$pdo->prepare('INSERT IGNORE INTO settings(k,v) VALUES(?,?)');
-    foreach(['calendar'=>'jalali','timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'en','quality'=>'mid','brand'=>$brand,'domain'=>''] as $k=>$v)$ins->execute([$k,$v]);
+    foreach(['calendar'=>$cal,'timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'en','quality'=>'mid','brand'=>$brand,'domain'=>''] as $k=>$v)$ins->execute([$k,$v]);
     if(!empty($C['seed'])&&is_array($C['seed'])){
      $rep=$pdo->prepare('REPLACE INTO settings(k,v) VALUES(?,?)');
      foreach($C['seed'] as $k=>$v){

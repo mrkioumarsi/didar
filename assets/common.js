@@ -30,7 +30,7 @@ star:'<polygon points="12 2 15 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 
 act:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>'};
 $.ajaxSetup({beforeSend:function(xhr){if(window.CSRF)xhr.setRequestHeader('X-CSRF',window.CSRF)}});
 window.t=(k,v)=>{let s=(window.T&&T[k])||k;if(v)Object.keys(v).forEach(a=>{s=String(s).split('{'+a+'}').join(v[a])});return s};
-window.CAL=(window.M&&M.cal)||'jalali';
+window.CAL=(window.M&&M.cal)||((window.M&&M.lang==='en')?'gregorian':'jalali');
 window.TZ=(window.M&&M.tz)||'Asia/Tehran';
 window.META={digits:(window.M&&M.digits)||''};
 window.locn=s=>{s=String(s==null?'':s);return META.digits==='fa'?s.replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]):s};

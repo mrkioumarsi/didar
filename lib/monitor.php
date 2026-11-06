@@ -1,10 +1,6 @@
 <?php
-function mon_snapshot(){
- $o=['online'=>0,'rooms'=>0,'cpu'=>null,'mem'=>null,'bw'=>null,'load'=>null,'sys'=>false];
- try{
-  $o['online']=(int)q("SELECT COUNT(*) FROM participants WHERE left_at IS NULL AND last_seen>NOW()-INTERVAL 20 SECOND")->fetchColumn();
-  $o['rooms']=(int)q("SELECT COUNT(DISTINCT room_id) FROM participants WHERE left_at IS NULL AND last_seen>NOW()-INTERVAL 20 SECOND")->fetchColumn();
- }catch(Throwable $e){}
+function mon_machine(){
+ $o=['cpu'=>null,'mem'=>null,'bw'=>null,'load'=>null,'sys'=>false];
  $o['mem']=mon_mem();
  $o['cpu']=mon_cpu();
  $o['bw']=mon_bw();
@@ -14,6 +10,58 @@ function mon_snapshot(){
  }
  $o['sys']=(bool)($o['mem']||$o['cpu']!==null||($o['bw']&&empty($o['bw']['wait'])));
  return $o;
+}
+function mon_wss_url(){
+ $u=trim((string)setting('lk_url'));
+ if(!preg_match('#^wss://#i',$u))return '';
+ $p=parse_url($u);
+ $h=strtolower((string)($p['host']??''));
+ if(!preg_match('/^[a-z0-9.-]+$/',$h)||$h==='localhost'||$h==='127.0.0.1')return '';
+ $self=strtolower(preg_replace('/:\d+$/','',(string)($_SERVER['HTTP_HOST']??'')));
+ if($h===$self)return '';
+ $port=isset($p['port'])?(int)$p['port']:443;
+ if($port<1||$port>65535||$port===7880||$port===7881)$port=443;
+ return 'https://'.$h.($port===443?'':':'.$port).'/api.php?action=node';
+}
+function mon_http($url,$header){
+ if(function_exists('curl_init')){
+  $ch=curl_init($url);
+  curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>3,CURLOPT_CONNECTTIMEOUT=>2,CURLOPT_HTTPHEADER=>[$header],CURLOPT_FOLLOWLOCATION=>false]);
+  $body=curl_exec($ch);
+  $code=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);
+  curl_close($ch);
+  return $code===200&&is_string($body)?$body:null;
+ }
+ $ctx=stream_context_create(['http'=>['timeout'=>3,'header'=>$header."\r\n",'ignore_errors'=>true],'ssl'=>['verify_peer'=>true,'verify_peer_name'=>true]]);
+ $body=@file_get_contents($url,false,$ctx);
+ return is_string($body)&&$body!==''?$body:null;
+}
+function mon_pull(){
+ $url=mon_wss_url();
+ if($url==='')return null;
+ $sec=trim((string)setting('lk_secret'));
+ if($sec==='')return null;
+ $body=mon_http($url,'X-Didar-Node: '.hash_hmac('sha256','node',$sec));
+ $j=json_decode((string)$body,true);
+ return is_array($j)?$j:null;
+}
+function mon_snapshot(){
+ $o=['online'=>0,'rooms'=>0,'cpu'=>null,'mem'=>null,'bw'=>null,'load'=>null,'sys'=>false,'src'=>''];
+ try{
+  $o['online']=(int)q("SELECT COUNT(*) FROM participants WHERE left_at IS NULL AND last_seen>NOW()-INTERVAL 20 SECOND")->fetchColumn();
+  $o['rooms']=(int)q("SELECT COUNT(DISTINCT room_id) FROM participants WHERE left_at IS NULL AND last_seen>NOW()-INTERVAL 20 SECOND")->fetchColumn();
+ }catch(Throwable $e){}
+ if(mon_wss_url()!==''){
+  $m=mon_pull()?:['cpu'=>null,'mem'=>null,'bw'=>null,'load'=>null,'sys'=>false];
+  $o['src']='wss';
+ }else $m=mon_machine();
+ foreach(['cpu','mem','bw','load','sys'] as $k)if(array_key_exists($k,$m))$o[$k]=$m[$k];
+ return $o;
+}
+function mon_node_ok(){
+ $sec=trim((string)setting('lk_secret'));
+ $got=(string)($_SERVER['HTTP_X_DIDAR_NODE']??'');
+ return $sec!==''&&hash_equals(hash_hmac('sha256','node',$sec),$got);
 }
 function mon_mem(){
  $t=@file_get_contents('/proc/meminfo');

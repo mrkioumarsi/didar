@@ -74,7 +74,7 @@ function ensure_schema(){
  if(@file_get_contents($f)==='4'){apply_seed();return;}
  foreach(["participants ADD can_cam TINYINT DEFAULT 0","participants ADD can_board TINYINT DEFAULT 0","participants ADD cam_on TINYINT DEFAULT 0","room_members ADD can_cam TINYINT DEFAULT 0","room_members ADD can_board TINYINT DEFAULT 0","rooms ADD description TEXT NULL","rooms ADD rec_enabled TINYINT DEFAULT 1","chat ADD owner VARCHAR(20) DEFAULT ''","chat ADD deleted_at DATETIME NULL","users ADD bio VARCHAR(300) NOT NULL DEFAULT ''","users ADD avatar VARCHAR(100) NULL","users ADD lang VARCHAR(8) NOT NULL DEFAULT ''","settings MODIFY k VARCHAR(40) NOT NULL"] as $s){try{db()->exec("ALTER TABLE $s");}catch(Exception $e){}}
  db()->exec("CREATE TABLE IF NOT EXISTS auth_tokens(id INT AUTO_INCREMENT PRIMARY KEY,selector VARCHAR(24) UNIQUE,hash CHAR(64),user_id INT,expires DATETIME,KEY(user_id)) DEFAULT CHARSET=utf8mb4");
- foreach(['calendar'=>'jalali','timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'fa','quality'=>'mid'] as $k=>$v)q("INSERT IGNORE INTO settings(k,v) VALUES(?,?)",[$k,$v]);
+ foreach(['timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'fa','quality'=>'mid'] as $k=>$v)q("INSERT IGNORE INTO settings(k,v) VALUES(?,?)",[$k,$v]);
  apply_seed();
  @file_put_contents($f,'4');
 }

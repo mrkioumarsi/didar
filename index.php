@@ -21,6 +21,8 @@ $cal=app_cal();
 <section id="set" class="pane0" hidden>
 <div class="phd"><div><h2><?=t('set.title')?></h2><p class="mu"><?=t('set.sub')?></p></div></div>
 <div class="sgrid">
+<div class="card scard wide"><div class="sh2"><span class="rc-ic" data-i="act" data-s="22"></span><div><h3><?=t('mon.title')?></h3><p class="mu"><?=t('mon.sub')?></p></div></div>
+<div id="monbox" class="stats"></div><p id="monnote" class="hint"></p></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="gear" data-s="22"></span><div><h3><?=t('set.general')?></h3><p class="mu"><?=t('set.general.sub')?></p></div></div>
 <label><?=t('set.brand')?></label><input id="sb"><p class="hint"><?=t('set.brand.hint')?></p>
 <label><?=t('set.domain')?></label><input id="sd" dir="ltr" placeholder="<?=h(t('set.domain.ph'))?>"><p class="hint"><?=t('set.domain.hint')?></p>
@@ -31,15 +33,14 @@ $cal=app_cal();
 <label><?=t('set.deflang')?></label><select id="sdl"><?=$langOpt?></select><p class="hint"><?=t('set.deflang.hint')?></p></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="sliders" data-s="22"></span><div><h3><?=t('set.sec')?></h3><p class="mu"><?=t('set.sec.sub')?></p></div></div>
 <label><?=t('set.policy')?></label><select id="spp"><option value="low"><?=t('set.policy.low')?></option><option value="mid"><?=t('set.policy.mid')?></option><option value="high"><?=t('set.policy.high')?></option></select><p class="hint"><?=t('set.policy.hint')?></p></div>
-<div class="card scard wide"><div class="sh2"><span class="rc-ic" data-i="act" data-s="22"></span><div><h3><?=t('mon.title')?></h3><p class="mu"><?=t('mon.sub')?></p></div></div>
-<div id="monbox" class="stats"></div><p id="monnote" class="hint"></p></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="link" data-s="22"></span><div><h3><?=t('set.net')?></h3><p class="mu"><?=t('set.net.sub')?></p></div></div>
 <label><?=t('set.mode')?></label><select id="smode"><option value="p2p"><?=t('mode.p2p')?></option><option value="sfu"><?=t('mode.sfu')?></option></select>
 <p class="hint" id="hintp2p"><?=t('set.mode.hint.p2p')?></p><p class="hint na" id="hintsfu"><?=t('set.mode.hint.sfu')?></p>
 <div id="lkbox" class="na"><label><?=t('set.lk')?></label><p class="hint"><?=t('set.lk.hint')?></p>
 <label><?=t('set.lkurl')?></label><input id="slu" dir="ltr" placeholder="wss://meet.example.com">
 <label><?=t('set.lkkey')?></label><input id="slk" dir="ltr">
-<label><?=t('set.lksec')?></label><input id="sls" dir="ltr"></div>
+<label><?=t('set.lksec')?></label><input id="sls" dir="ltr"></div></div>
+<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="send" data-s="22"></span><div><h3><?=t('set.ice')?></h3><p class="mu"><?=t('set.ice.sub')?></p></div></div>
 <label><?=t('set.stun')?></label><div class="inl"><input id="sst" dir="ltr" placeholder="<?=h(t('set.stun.ph'))?>"><button type="button" class="btn ghost sm" id="sstd"><?=t('set.stun.def')?></button></div><p class="hint"><?=t('set.stun.hint')?></p>
 <label><?=t('set.turn')?></label><input id="stu" dir="ltr" placeholder="<?=h(t('set.turn.ph'))?>"><p class="hint"><?=t('set.turn.hint')?></p>
 <label><?=t('set.turnsec')?></label><input id="stus" dir="ltr" placeholder="<?=h(t('set.turnsec.ph'))?>"><p class="hint"><?=t('set.turnsec.hint')?></p>

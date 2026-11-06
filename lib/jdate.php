@@ -25,7 +25,9 @@ function j_j2g($jy,$jm,$jd){
 }
 function app_cal(){
  $c=function_exists('setting')?setting('calendar'):'';
- return $c==='gregorian'?'gregorian':'jalali';
+ if($c==='gregorian'||$c==='jalali')return $c;
+ $lang=function_exists('html_lang')?html_lang():'fa';
+ return $lang==='en'?'gregorian':'jalali';
 }
 function app_tz_name(){
  $z=function_exists('setting')?setting('timezone'):'';

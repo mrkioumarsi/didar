@@ -137,7 +137,10 @@ function monOnce(){$.post('api.php?action=monitor',{},null,'json').done(r=>{
  const mem=r.mem?fmtB(r.mem.used)+' / '+fmtB(r.mem.total):'—';
  const bw=!r.bw?'—':(r.bw.wait?t('mon.wait'):'↓ '+fmtB(r.bw.rx)+'/s · ↑ '+fmtB(r.bw.tx)+'/s');
  $('#monbox').html(cell(locn(r.online),t('mon.online'))+cell(locn(r.rooms),t('mon.rooms'))+cell(cpu,t('mon.cpu'))+cell(mem,t('mon.mem'))+cell(bw,t('mon.bw')));
- $('#monnote').text(!r.sys?t('mon.unavailable'):(r.load!=null?t('mon.load',{n:locn(r.load)}):''));
+ let note=!r.sys?t('mon.unavailable'):'';
+ if(r.sys&&r.src==='wss')note=t('mon.wss');
+ if(r.sys&&r.load!=null)note=(note?note+' · ':'')+t('mon.load',{n:locn(r.load)});
+ $('#monnote').text(note);
 })}
 function monKick(){clearInterval(monT);if(tab==='set'&&isAd()){monOnce();monT=setInterval(monOnce,4000)}}
 init()});
