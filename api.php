@@ -110,6 +110,30 @@ try{
   if(empty($r['ok'])) fail(t(($r['error']??'')==='perm'?'upd.perm':(($r['error']??'')==='net'?'upd.net':'upd.fail')));
   out($r);
  case 'backup':need_admin();backup_send();
+ case 'restore':
+  need_admin();
+  if((string)($P['confirm']??'')!=='1') fail(t('bak.badfile'));
+  if(empty($_FILES['f'])||!is_uploaded_file($_FILES['f']['tmp_name']??'')||!empty($_FILES['f']['error'])) fail(t('bak.badfile'));
+  if((int)$_FILES['f']['size']>60*1048576||(int)$_FILES['f']['size']<40) fail(t('bak.badfile'));
+  if(!preg_match('/\.sql$/i',(string)($_FILES['f']['name']??''))) fail(t('bak.badfile'));
+  if(!restore_apply($_FILES['f']['tmp_name'])) fail(t('bak.fail'));
+  out(['ok'=>1]);
+ case 'ssl_renew':need_admin();ssl_renew();
+ case 'rooms_clear':
+  need_admin();
+  if((string)($P['confirm']??'')!=='1') fail(t('err.forbidden'));
+  foreach(glob(__DIR__.'/storage/rec_*')?:[] as $fp){if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4|mp4\.part)$/',basename($fp))) @unlink($fp);}
+  foreach(['signals','chat','participants','room_members','recordings','rooms'] as $tb) q('DELETE FROM '.$tb);
+  out(['ok'=>1]);
+ case 'users_clear':
+  need_admin();
+  if((string)($P['confirm']??'')!=='1') fail(t('err.forbidden'));
+  foreach(q("SELECT avatar FROM users WHERE role<>'admin' AND avatar IS NOT NULL AND avatar<>''")->fetchAll() as $row){$av=basename((string)$row['avatar']);if(preg_match('/^[A-Za-z0-9._-]+$/',$av)) @unlink(__DIR__.'/assets/avatars/'.$av);}
+  q("DELETE FROM auth_tokens WHERE user_id IN (SELECT id FROM users WHERE role<>'admin')");
+  q("DELETE FROM room_members WHERE user_id IN (SELECT id FROM users WHERE role<>'admin')");
+  q("UPDATE participants SET user_id=NULL WHERE user_id IN (SELECT id FROM users WHERE role<>'admin')");
+  q("DELETE FROM users WHERE role<>'admin'");
+  out(['ok'=>1]);
  case 'users_list':need_admin();out(['users'=>q("SELECT u.id,u.username,u.name,u.role,u.bio,u.avatar,u.lang,(SELECT COUNT(*) FROM room_members m WHERE m.user_id=u.id) rooms FROM users u ORDER BY u.id")->fetchAll()]);
  case 'users_search':
   need_admin();
@@ -354,6 +378,11 @@ try{
   clearstatcache(true,$fp);
   q("UPDATE recordings SET size=? WHERE id=?",[(int)filesize($fp),$r['id']]);
   out(['ok'=>1]);
+ case 'rec_finish':
+  $p=part();
+  if(!$p['mgr']) fail(t('err.forbidden'));
+  rec_finish_file((int)$P['id'],(int)$p['room_id']);
+  out(['ok'=>1]);
  case 'rec_list':
   if(!room_access((int)$P['room_id']))fail(t('err.forbidden'));
   out(['recs'=>q("SELECT id,size,created,file FROM recordings WHERE room_id=? ORDER BY id DESC",[$P['room_id']])->fetchAll(),'mgr'=>can_manage((int)$P['room_id'])]);
@@ -364,18 +393,7 @@ try{
   q("DELETE FROM recordings WHERE id=?",[$r['id']]);
   out(['ok'=>1]);
  case 'rec_dl':
-  $r=q("SELECT * FROM recordings WHERE id=?",[(int)$_GET['id']])->fetch();
-  if(!$r||!room_access((int)$r['room_id']))die(t('err.forbidden'));
-  $fn=basename($r['file']);
-  if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn))die(t('err.forbidden'));
-  $fp=__DIR__.'/storage/'.$fn;
-  if(!is_file($fp))die(t('err.nofile'));
-  header('Content-Type: video/'.pathinfo($fp,PATHINFO_EXTENSION));
-  header('Content-Disposition: attachment; filename="'.$fn.'"');
-  header('Content-Length: '.filesize($fp));
-  header('X-Content-Type-Options: nosniff');
-  readfile($fp);
-  exit;
+  rec_send((int)($_GET['id']??0),!empty($_GET['dl']));
  case 'attendance_list':
   $rid=(int)$P['room_id'];
   if(!can_manage($rid))fail(t('err.forbidden'));

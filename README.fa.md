@@ -18,7 +18,7 @@
 روی سرور این را اجرا کنید. اول نسخه را دانلود می‌کند، بعد نصب می‌کند:
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.3 && tar -xzf didar.tar.gz && cd didar-1.0.3 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
+wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.4 && tar -xzf didar.tar.gz && cd didar-1.0.4 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
 ```
 
 نام کاربری و رمز مدیر را در همین دستور بگذارید. رمز حداقل ۴ نویسه است. اگر `--admin-pass` را ننویسید، اسکریپت یک رمز می‌سازد و فقط یک بار در پایان چاپ می‌کند.

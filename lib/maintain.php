@@ -157,7 +157,46 @@ function didar_fix_tree($root){
  if(is_file($root.'/config.local.php')) exec('chown root:www-data '.escapeshellarg($root.'/config.local.php').' && chmod 640 '.escapeshellarg($root.'/config.local.php'));
  foreach([$root.'/assets/icon-192.png',$root.'/assets/icon-512.png'] as $ic) if(is_file($ic)) exec('chown www-data:www-data '.escapeshellarg($ic).' && chmod 664 '.escapeshellarg($ic));
 }
+function didar_domain_file(){
+ $f='/etc/didar/domain';
+ if(is_file($f)&&preg_match('/^[A-Za-z0-9.-]{1,253}$/',trim((string)@file_get_contents($f)))) return;
+ if(!is_dir('/etc/didar')||!is_writable('/etc/didar')) return;
+ $ng=@file_get_contents('/etc/nginx/sites-available/didar');
+ if(!is_string($ng)||!preg_match('/server_name\s+([A-Za-z0-9.-]{1,253})\s*;/',$ng,$m)) return;
+ if($m[1]==='_'||$m[1]==='localhost') return;
+ @file_put_contents($f,$m[1]."\n");
+ @chmod($f,0644);
+}
+function didar_sudoers(){
+ $root=dirname(__DIR__);
+ if(is_dir('/usr/local/sbin')&&is_writable('/usr/local/sbin')){
+  foreach(['didar-update.sh'=>'/usr/local/sbin/didar-update','didar-renew.sh'=>'/usr/local/sbin/didar-renew'] as $src=>$dst){
+   if(!is_file($root.'/'.$src)) continue;
+   @copy($root.'/'.$src,$dst);
+   @chmod($dst,0755);
+  }
+ }
+ didar_domain_file();
+ if(!is_file('/usr/local/sbin/didar-update')||!is_dir('/etc/sudoers.d')||!is_writable('/etc/sudoers.d')) return;
+ $line='www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update';
+ if(is_file('/usr/local/sbin/didar-renew')) $line.=', /usr/local/sbin/didar-renew';
+ $sf='/etc/sudoers.d/didar';
+ $cur=is_file($sf)?trim((string)@file_get_contents($sf)):'';
+ if($cur!==$line){
+  if(@file_put_contents($sf,$line."\n")===false) return;
+  @chmod($sf,0440);
+  $code=1;$o=[];
+  if(didar_fn('exec')) exec('visudo -cf '.escapeshellarg($sf).' >/dev/null 2>&1',$o,$code);
+  if($code!==0){
+   if($cur!=='') @file_put_contents($sf,$cur."\n");
+   else @unlink($sf);
+   return;
+  }
+ }
+ if(didar_fn('exec')&&is_executable('/usr/bin/apt-get')&&!is_executable('/usr/bin/ffmpeg')) exec('bash -c '.escapeshellarg('sleep 3; command -v ffmpeg >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg >/dev/null 2>&1').' >/dev/null 2>&1 &');
+}
 function nginx_hide(){
+ didar_sudoers();
  $root=dirname(__DIR__);
  if(is_file($root.'/schema.sql')&&is_dir('/etc/didar')&&is_writable('/etc/didar')){
   @copy($root.'/schema.sql','/etc/didar/schema.sql');
@@ -180,9 +219,9 @@ function nginx_hide(){
  if(!is_file($f)||!is_writable($f))return;
  $t=@file_get_contents($f);
  if(!is_string($t)||$t==='')return;
- $n=str_replace('fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;',$t);
+ $n=str_replace(['fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;'],['fastcgi_read_timeout 600s;','fastcgi_read_timeout 600s;'],$t);
  $add='';
- foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /install.php { deny all; }'] as $line){
+ foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /install.php { deny all; }'] as $line){
   if(!str_contains($n,$line))$add.=" ".$line."\n";
  }
  if($add!=='')$n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$n,1);
@@ -350,4 +389,133 @@ function backup_send(){
  readfile($path);
  @unlink($path);
  exit;
+}
+function restore_apply($src){
+ global $C;
+ @set_time_limit(0);
+ if(!is_file($src)||!is_readable($src)) return false;
+ $sz=filesize($src);
+ if($sz<40||$sz>60*1048576) return false;
+ if(!preg_match('/^[A-Za-z0-9_]+$/',(string)$C['db_name'])||!preg_match('/^[A-Za-z0-9._:-]+$/',(string)$C['db_host'])) return false;
+ $fh=@fopen($src,'rb');
+ if(!$fh) return false;
+ $head='';
+ while(!feof($fh)){
+  $chunk=fread($fh,1048576);
+  if($chunk===false||$chunk==='') break;
+  if($head==='') $head=substr($chunk,0,8192);
+  if(str_contains($chunk,"\0")){fclose($fh);return false;}
+ }
+ fclose($fh);
+ if($head===''||!preg_match('/CREATE TABLE|INSERT INTO|DROP TABLE/i',$head)) return false;
+ $bin='';
+ foreach(['/usr/bin/mariadb','/usr/bin/mysql'] as $b) if(is_executable($b)){$bin=$b;break;}
+ if($bin===''||!didar_fn('proc_open')) return false;
+ $dir=dirname(__DIR__).'/storage';
+ $cnf=$dir.'/bak-'.bin2hex(random_bytes(4)).'.cnf';
+ $esc=function($s){return str_replace(['\\','"'],['\\\\','\\"'],str_replace(["\r","\n"],'',(string)$s));};
+ if(@file_put_contents($cnf,"[client]\nuser=\"".$esc($C['db_user'])."\"\npassword=\"".$esc($C['db_pass'])."\"\nhost=\"".$esc($C['db_host'])."\"\n")===false) return false;
+ @chmod($cnf,0600);
+ $code=1;
+ try{
+  $spec=[0=>['file',$src,'r'],1=>['pipe','w'],2=>['pipe','w']];
+  $proc=@proc_open([$bin,'--defaults-extra-file='.$cnf,'--default-character-set=utf8mb4',$C['db_name']],$spec,$pipes);
+  if(!is_resource($proc)) return false;
+  stream_get_contents($pipes[1]);
+  stream_get_contents($pipes[2]);
+  fclose($pipes[1]);
+  fclose($pipes[2]);
+  $code=proc_close($proc);
+ }finally{@unlink($cnf);}
+ return $code===0;
+}
+function ssl_renew(){
+ @set_time_limit(180);
+ if(!is_executable('/usr/local/sbin/didar-renew')||!didar_fn('exec')) fail(t('ssl.perm'));
+ $out=[];$code=1;
+ exec('sudo -n /usr/local/sbin/didar-renew 2>&1',$out,$code);
+ if($code!==0){
+  $s=implode(' ',$out);
+  if(function_exists('log_err')) log_err(new RuntimeException('ssl '.substr($s,0,300)));
+  if(stripos($s,'password')!==false||stripos($s,'not permitted')!==false||stripos($s,'not allowed')!==false||stripos($s,'a terminal is required')!==false) fail(t('ssl.perm'));
+  fail(t('ssl.fail'));
+ }
+ out(['ok'=>1]);
+}
+function rec_send($id,$dl){
+ $r=q("SELECT * FROM recordings WHERE id=?",[$id])->fetch();
+ if(!$r||!room_access((int)$r['room_id'])){http_response_code(403);die(t('err.forbidden'));}
+ $fn=basename($r['file']);
+ if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)){http_response_code(403);die(t('err.forbidden'));}
+ $fp=dirname(__DIR__).'/storage/'.$fn;
+ if(!is_file($fp)){http_response_code(404);die(t('err.nofile'));}
+ $size=filesize($fp);
+ if($size<1){http_response_code(404);die(t('err.nofile'));}
+ $ext=strtolower(pathinfo($fp,PATHINFO_EXTENSION));
+ while(ob_get_level()) @ob_end_clean();
+ @ini_set('zlib.output_compression','0');
+ header('Content-Type: '.($ext==='mp4'?'video/mp4':'video/webm'));
+ header('Accept-Ranges: bytes');
+ header('X-Content-Type-Options: nosniff');
+ header('Cache-Control: private, no-store');
+ header('Content-Disposition: '.($dl?'attachment':'inline').'; filename="'.$fn.'"');
+ $start=0;$end=$size-1;
+ if(isset($_SERVER['HTTP_RANGE'])&&preg_match('/bytes=(\d*)-(\d*)/',$_SERVER['HTTP_RANGE'],$m)){
+  if($m[1]===''){$tail=(int)$m[2];if($tail<1)$tail=$size;$start=max(0,$size-$tail);}
+  else{$start=(int)$m[1];$end=$m[2]===''?$size-1:(int)$m[2];}
+  if($start>$end||$start>=$size){header('Content-Range: bytes */'.$size);http_response_code(416);exit;}
+  if($end>=$size)$end=$size-1;
+  header('Content-Range: bytes '.$start.'-'.$end.'/'.$size);
+  http_response_code(206);
+ }
+ $len=$end-$start+1;
+ header('Content-Length: '.$len);
+ if(($_SERVER['REQUEST_METHOD']??'')==='HEAD') exit;
+ $fh=fopen($fp,'rb');
+ if(!$fh){http_response_code(404);die(t('err.nofile'));}
+ fseek($fh,$start);
+ $left=$len;
+ while($left>0&&!feof($fh)){
+  $chunk=fread($fh,min(1048576,$left));
+  if($chunk===false||$chunk==='') break;
+  echo $chunk;
+  $left-=strlen($chunk);
+  if(connection_aborted()) break;
+ }
+ fclose($fh);
+ exit;
+}
+function rec_finish_file($id,$room){
+ @set_time_limit(0);
+ $dir=dirname(__DIR__).'/storage';
+ foreach(glob($dir.'/rec_*.part')?:[] as $old){
+  $bn=basename($old);
+  if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4\.part$/',$bn)&&is_file($old)&&filemtime($old)<time()-86400) @unlink($old);
+ }
+ $r=q("SELECT * FROM recordings WHERE id=? AND room_id=?",[$id,$room])->fetch();
+ if(!$r) return;
+ $fn=basename($r['file']);
+ if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4)$/',$fn)) return;
+ $src=$dir.'/'.$fn;
+ if(!is_file($src)||filesize($src)<32) return;
+ $bin='';
+ foreach(['/usr/bin/ffmpeg','/usr/local/bin/ffmpeg'] as $b) if(is_executable($b)){$bin=$b;break;}
+ if($bin===''||!didar_fn('proc_open')) return;
+ $dst='rec_'.(int)$r['room_id'].'_'.time().'_'.bin2hex(random_bytes(8)).'.mp4';
+ if(!preg_match('/^rec_\d+_\d+_[a-f0-9]+\.mp4$/',$dst)) return;
+ $tmp=$dir.'/'.$dst.'.part';
+ $proc=@proc_open([$bin,'-y','-fflags','+genpts','-i',$src,'-c:v','libx264','-preset','veryfast','-crf','23','-c:a','aac','-movflags','+faststart',$tmp],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+ if(!is_resource($proc)){@unlink($tmp);return;}
+ fclose($pipes[0]);
+ stream_get_contents($pipes[1]);
+ stream_get_contents($pipes[2]);
+ fclose($pipes[1]);
+ fclose($pipes[2]);
+ $code=proc_close($proc);
+ if($code!==0||!is_file($tmp)||filesize($tmp)<32){@unlink($tmp);return;}
+ $final=$dir.'/'.$dst;
+ if(!@rename($tmp,$final)){@unlink($tmp);return;}
+ if($final!==$src) @unlink($src);
+ clearstatcache(true,$final);
+ q("UPDATE recordings SET file=?,size=? WHERE id=?",[$dst,(int)filesize($final),$r['id']]);
 }

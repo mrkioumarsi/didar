@@ -55,7 +55,13 @@ $cal=app_cal();
 <div class="sec setrow"><div><b><?=t('set.relay')?></b><p class="hint"><?=t('set.relay.hint')?></p></div><label class="toggle"><span class="sw"><input type="checkbox" id="sr"><i></i></span></label></div>
 <div class="inl"><button type="button" class="btn ghost sm" id="stest"><?=t('set.test')?></button></div><p id="sres" class="hint"></p></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="down" data-s="22"></span><div><h3><?=t('bak.title')?></h3><p class="mu"><?=t('bak.sub')?></p></div></div>
-<p class="hint"><?=t('bak.hint')?></p><button type="button" class="btn ghost sm" id="sbak"><?=t('bak.btn')?></button></div>
+<p class="hint"><?=t('bak.hint')?></p><button type="button" class="btn ghost sm" id="sbak"><?=t('bak.btn')?></button>
+<label><?=t('bak.restore')?></label><input type="file" id="sresf" accept=".sql,text/plain"><p class="hint"><?=t('bak.restore.hint')?></p><button type="button" class="btn ghost sm" id="srest"><?=t('bak.restore.btn')?></button></div>
+<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="link" data-s="22"></span><div><h3><?=t('ssl.title')?></h3><p class="mu"><?=t('ssl.sub')?></p></div></div>
+<p class="hint"><?=t('ssl.hint')?></p><button type="button" class="btn ghost sm" id="sssl"><?=t('ssl.btn')?></button></div>
+<div class="card scard"><div class="sh2"><span class="rc-ic" data-i="trash" data-s="22"></span><div><h3><?=t('wipe.title')?></h3><p class="mu"><?=t('wipe.sub')?></p></div></div>
+<p class="hint"><?=t('wipe.rooms.d')?></p><button type="button" class="btn danger sm" id="swrooms"><?=t('wipe.rooms')?></button>
+<p class="hint"><?=t('wipe.users.d')?></p><button type="button" class="btn danger sm" id="swusers"><?=t('wipe.users')?></button></div>
 <div class="card scard"><div class="sh2"><span class="rc-ic" data-i="arrow" data-s="22"></span><div><h3><?=t('upd.title')?></h3><p class="mu"><?=t('upd.sub')?></p></div></div>
 <p class="hint" id="updnote"><?=t('upd.cur',['v'=>locn(trim((string)@file_get_contents(__DIR__.'/VERSION')))])?></p>
 <div class="inl"><button type="button" class="btn ghost sm" id="updchk"><?=t('upd.check')?></button><button type="button" class="btn sm" id="updgo" disabled><?=t('upd.apply')?></button></div></div>

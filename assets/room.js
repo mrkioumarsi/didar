@@ -77,7 +77,7 @@ function fs(el){const d=document;if(d.fullscreenElement||d.webkitFullscreenEleme
  if(f){try{const p=f.call(el);p&&p.catch&&p.catch(()=>el.classList.add('fsx'))}catch(e){el.classList.add('fsx')}}else el.classList.add('fsx')}
 $(document).on('click','[data-fs]',function(){fs($(this).closest('.tile')[0])});$('#sfs').click(()=>fs($('#stage')[0]));$('#wfs').click(()=>fs($('#board')[0]));
 ['fullscreenchange','webkitfullscreenchange'].forEach(e=>document.addEventListener(e,()=>{const f=document.fullscreenElement||document.webkitFullscreenElement;$('#sfs').html(ic(f==$('#stage')[0]?'min2':'max',16));$('#wfs').html(ic(f==$('#board')[0]?'min2':'max',18))}));
-function setView(v){view=v;$('#vt button').removeClass('act').filter('[data-v='+v+']').addClass('act').removeClass('dot');$('#media').toggleClass('na',v!='media');$('#board').toggleClass('na',v!='board');$('#stb').toggleClass('bv',v=='board')}
+function setView(v){view=v;$('#vt button').removeClass('act').filter('[data-v='+v+']').addClass('act').removeClass('dot');const hold=!!rec;$('#media').toggleClass('na',v!='media'&&!hold).toggleClass('offstage',v!='media'&&hold);$('#board').toggleClass('na',v!='board'&&!hold).toggleClass('offstage',v!='board'&&hold);$('#stb').toggleClass('bv',v=='board')}
 $('#vt button').click(function(){setView($(this).data('v'))});
 const PM=[['mic','mic','perm.mic'],['cam','cam','perm.cam'],['screen','screen','perm.screen'],['board','board','perm.board']];
 function ui(){const mg=+S.me.mgr?1:0,seen={},dnm={};parts.forEach(p=>{seen[p.name]=(seen[p.name]||0)+1;dnm[p.id]=seen[p.name]>1?p.name+' ('+locn(seen[p.name])+')':p.name});$('#cnt').text(locn(parts.length));
@@ -136,8 +136,9 @@ function stopScr(k){const tr=L.scr[k];if(S.mode==='sfu'){if(tr)tr.onended=null;L
 $('#bScr').click(()=>{if(L.scr[0])return stopScr(0);if(!(+S.me.mgr||+S.me.can_screen))return toast(t('err.noscr'));addScr()});
 $('#bSpk').click(function(){spk=!spk;Object.values(pcs).forEach(o=>o.au&&(o.au.muted=!spk));$(this).toggleClass('on',spk);seti(this,spk?'spk':'spkoff')});
 $('#bLink').click(()=>linkModal(S.room.link));
-$('#bLeave').click(()=>{leaving=1;rec&&rec.mr.stop();if(lk)try{lk.disconnect()}catch(e){}Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')});
-addEventListener('pagehide',()=>{if(S.pid&&navigator.sendBeacon){const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)}});
+$('#bLeave').click(()=>{if(rec)return toast(t('rec.block'));leaving=1;if(lk)try{lk.disconnect()}catch(e){}Object.keys(pcs).forEach(drop);L.mic&&L.mic.stop();L.cam&&L.cam.stop();L.scr.forEach(tr=>tr&&tr.stop());api('leave').always(()=>location.href='index.php')});
+addEventListener('beforeunload',e=>{if(!rec)return;e.preventDefault();e.returnValue=''});
+addEventListener('pagehide',()=>{if(rec||!S.pid||!navigator.sendBeacon)return;const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)});
 const cv=$('#cv')[0],cx=cv.getContext('2d');let objs=[],gotFull=0,tool='pen',col='#111827',sz=6,cur=null,seq=0;
 const canB=()=>+S.me.mgr||+S.me.can_board,SHAPE=['line','arrow','rect','ell'];
 function drawObj(o){cx.save();cx.lineCap=cx.lineJoin='round';cx.strokeStyle=cx.fillStyle=o.c;cx.lineWidth=o.w;
@@ -165,22 +166,26 @@ $('#wgrid').click(function(){$(this).toggleClass('on');$('#cv').toggleClass('ng'
 $('#wclr').click(()=>confirm(t('confirm.board'))&&(objs=[],redraw(),sig(0,'wbclear',1)));
 $('#wsave').click(()=>{const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);x.drawImage(cv,0,0);const a=document.createElement('a');a.download='whiteboard.png';a.href=c.toDataURL('image/png');a.click()});
 function mixAdd(st){if(rec&&st&&st.getAudioTracks().length)try{rec.ctx.createMediaStreamSource(st).connect(rec.dest)}catch(e){}}
+function paintBoard(x,w,h){x.fillStyle='#fff';x.fillRect(0,0,w,h);const k=Math.min(w/W,h/H);x.drawImage(cv,(w-W*k)/2,(h-H*k)/2,W*k,H*k)}
+function recBar(){if(!rec){$('#recbar').addClass('na');return}$('#recbar').removeClass('na');const tot=rec.total||0,done=(rec.sent||0)+(rec.fly||0),p=rec.proc?100:(tot?Math.min(100,Math.round(done/tot*100)):0);$('#recbar .recfill').css('width',p+'%');$('#recpct').text(rec.proc?t('rec.proc'):t('rec.up',{n:locn(p)}))}
 function frame(rc){const x=rc.getContext('2d'),w=rc.width,h=rc.height;x.fillStyle='#0f172a';x.fillRect(0,0,w,h);
- if(view=='board'){x.fillStyle='#fff';x.fillRect(0,0,w,h);const k=Math.min(w/W,h/H);x.drawImage(cv,(w-W*k)/2,(h-H*k)/2,W*k,H*k);return}
- let vs=$('#scrs video').toArray();if(!vs.length)vs=$('#tiles video').toArray();vs=vs.filter(v=>v.readyState>=2&&v.videoWidth);if(!vs.length)return;
+ if(view=='board'){try{paintBoard(x,w,h)}catch(e){}return}
+ let vs=$('#scrs video').toArray().filter(v=>v.readyState>=2&&v.videoWidth);if(!vs.length)vs=$('#tiles video').toArray().filter(v=>v.readyState>=2&&v.videoWidth);
+ if(!vs.length){try{paintBoard(x,w,h)}catch(e){}return}
  const c=Math.ceil(Math.sqrt(vs.length)),rw=Math.ceil(vs.length/c),cw=w/c,ch=h/rw;
- vs.forEach((v,i)=>{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)})}
+ vs.forEach((v,i)=>{try{const k=Math.min(cw/v.videoWidth,ch/v.videoHeight);x.drawImage(v,(i%c)*cw+(cw-v.videoWidth*k)/2,Math.floor(i/c)*ch+(ch-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k)}catch(e){}})}
 $('#bRec').click(async function(){if(rec){try{rec.mr.stop()}catch(e){}return}if(!S.recOn)return toast(t('err.rec.off'));
  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));if(!mt)return toast(t('err.rec.browser'));
+ const ext=mt.indexOf('webm')>=0?'webm':'mp4';
  const ctx=new AudioContext();if(ctx.resume)ctx.resume();const dest=ctx.createMediaStreamDestination(),rc=document.createElement('canvas');rc.width=1280;rc.height=720;
  let mr;try{mr=new MediaRecorder(new MediaStream([...rc.captureStream(15).getVideoTracks(),...dest.stream.getAudioTracks()]),{mimeType:mt,videoBitsPerSecond:1500000})}catch(e){ctx.close();return toast(t('err.rec.browser'))}
- let id;try{id=(await api('rec_start',{ext:mt.includes('mp4')?'mp4':'webm'})).id}catch(e){ctx.close();return}
- const r=rec={ctx,dest,id,n:0,q:Promise.resolve(),bad:0,mr};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));
+ let id;try{id=(await api('rec_start',{ext:ext})).id}catch(e){ctx.close();return}
+ const r=rec={ctx,dest,id,n:0,q:Promise.resolve(),bad:0,mr,total:0,sent:0,fly:0,proc:0};Object.values(pcs).forEach(o=>mixAdd(o.rs[0]));if(L.mic)mixAdd(new MediaStream([L.mic]));
  r.tm=setInterval(()=>frame(rc),66);
- mr.ondataavailable=e=>{if(!e.data||!e.data.size)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',r.n++);fd.append('f',e.data,'c.'+(mt.includes('mp4')?'mp4':'webm'));if(window.CSRF)fd.append('csrf',window.CSRF);
-  r.q=r.q.then(()=>fetch('api.php?action=rec_chunk',{method:'POST',body:fd,credentials:'same-origin'}).then(res=>{if(!res.ok)throw 0})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
+ mr.ondataavailable=e=>{if(!e.data||!e.data.size||!rec)return;if(e.data.size>16*1048576){r.bad=1;try{mr.stop()}catch(ex){}return}const blob=e.data,n=r.n++;r.total+=blob.size;recBar();
+  r.q=r.q.then(()=>new Promise((res,rej)=>{const fd=new FormData();fd.append('pid',S.pid);fd.append('id',id);fd.append('n',n);fd.append('f',blob,'c.'+ext);if(window.CSRF)fd.append('csrf',window.CSRF);const x=new XMLHttpRequest();x.open('POST','api.php?action=rec_chunk');x.upload.onprogress=ev=>{if(!rec||!ev.lengthComputable)return;rec.fly=ev.loaded;recBar()};x.onload=()=>{if(rec){rec.sent+=blob.size;rec.fly=0;recBar()}x.status>=200&&x.status<300?res():rej()};x.onerror=()=>rej();x.send(fd)})).catch(()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(ex){}})};
  mr.onerror=()=>{r.bad=1;try{if(mr.state==='recording')mr.stop()}catch(e){}};
- mr.onstop=()=>{clearInterval(r.tm);const fin=()=>{try{ctx.close()}catch(e){}rec=null;$('#bRec').removeClass('rec');toast(t(r.bad?'err.nosave':'rec.saved'))};r.q.then(fin).catch(fin)};
- try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();rec=null;return toast(t('err.rec.browser'))}
- $('#bRec').addClass('rec');toast(t('rec.started'))});
+ mr.onstop=()=>{clearInterval(r.tm);const done=()=>{try{ctx.close()}catch(e){}rec=null;setView(view);$('#bRec').removeClass('rec');$('#recbar').addClass('na');toast(t(r.bad?'err.nosave':'rec.saved'))};r.q.then(()=>{if(r.bad){done();return}r.proc=1;recBar();$.ajax({url:'api.php?action=rec_finish',method:'POST',data:{pid:S.pid,id:r.id},dataType:'json'}).always(done)}).catch(done)};
+ try{mr.start(5000)}catch(e){clearInterval(r.tm);ctx.close();rec=null;setView(view);return toast(t('err.rec.browser'))}
+ setView(view);recBar();$('#bRec').addClass('rec');toast(t('rec.started'))});
 });

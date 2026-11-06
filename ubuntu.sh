@@ -25,13 +25,13 @@ case "$ADMIN_PASS" in *$'\n'*|*$'\r'*) echo "Invalid admin password"; exit 1;; e
 if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then echo "Domain and email are required"; exit 1; fi
 if ! printf '%s' "$DOMAIN" | grep -Eq '^[A-Za-z0-9.-]+$'; then echo "Invalid domain"; exit 1; fi
 if ! printf '%s' "$EMAIL" | grep -Eq '^[^@[:space:]]+@[^@[:space:]]+$'; then echo "Invalid email"; exit 1; fi
-if [ -z "$APPDIR" ]; then APPDIR="$(cd "$(dirname "$0")/.." && pwd)"; fi
+if [ -z "$APPDIR" ]; then HERE="$(cd "$(dirname "$0")" && pwd)"; if [ -f "$HERE/api.php" ]; then APPDIR="$HERE"; else APPDIR="$(cd "$HERE/.." && pwd)"; fi; fi
 if [ ! -f "$APPDIR/api.php" ]; then echo "Application folder was not found"; exit 1; fi
 if [ -f /etc/os-release ]; then . /etc/os-release; fi
 if [ "${ID:-}" != "ubuntu" ]; then echo "This script is for Ubuntu"; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y nginx mariadb-server php-fpm php-cli php-mysql php-gd php-mbstring php-xml php-curl php-zip coturn certbot python3-certbot-nginx ufw curl ca-certificates openssl
+apt-get install -y nginx mariadb-server php-fpm php-cli php-mysql php-gd php-mbstring php-xml php-curl php-zip coturn certbot python3-certbot-nginx ffmpeg ufw curl ca-certificates openssl
 systemctl disable --now apache2 >/dev/null 2>&1 || true
 PHPVER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 install -d -m 700 /etc/didar
@@ -296,11 +296,12 @@ ${HTTP2}
   include fastcgi_params;
   fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
   fastcgi_pass unix:${PHPSOCK};
-  fastcgi_read_timeout 180s;
+  fastcgi_read_timeout 600s;
  }
  location = /schema.sql { deny all; }
  location = /ubuntu.sh { deny all; }
  location = /didar-update.sh { deny all; }
+ location = /didar-renew.sh { deny all; }
  location = /install.php { deny all; }
  location ~ ^/(storage|lib)/ { deny all; }
  location ~ /(config\.php|config\.local\.php)\$ { deny all; }
@@ -407,11 +408,14 @@ install -d -o www-data -g www-data -m 750 "$APPDIR/storage/sessions"
 chown -R www-data:www-data "$APPDIR/storage" "$APPDIR/assets/avatars"
 chmod 750 "$APPDIR/storage"
 rm -f "$APPDIR/install.php" "$APPDIR/schema.sql"
-if [ ! -f "$APPDIR/didar-update.sh" ]; then echo "Updater script is missing"; exit 1; fi
+if [ ! -f "$APPDIR/didar-update.sh" ] || [ ! -f "$APPDIR/didar-renew.sh" ]; then echo "Updater script is missing"; exit 1; fi
 install -m 755 "$APPDIR/didar-update.sh" /usr/local/sbin/didar-update
+install -m 755 "$APPDIR/didar-renew.sh" /usr/local/sbin/didar-renew
 printf '%s\n' "$APPDIR" > /etc/didar/appdir
 chmod 644 /etc/didar/appdir
-printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update\n' > /etc/sudoers.d/didar
+printf '%s\n' "$DOMAIN" > /etc/didar/domain
+chmod 644 /etc/didar/domain
+printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update, /usr/local/sbin/didar-renew\n' > /etc/sudoers.d/didar
 chmod 440 /etc/sudoers.d/didar
 visudo -cf /etc/sudoers.d/didar >/dev/null
 ufw allow 3478/tcp
