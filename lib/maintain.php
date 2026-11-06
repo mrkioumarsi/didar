@@ -157,17 +157,46 @@ function didar_fix_tree($root){
  if(is_file($root.'/config.local.php')) exec('chown root:www-data '.escapeshellarg($root.'/config.local.php').' && chmod 640 '.escapeshellarg($root.'/config.local.php'));
  foreach([$root.'/assets/icon-192.png',$root.'/assets/icon-512.png'] as $ic) if(is_file($ic)) exec('chown www-data:www-data '.escapeshellarg($ic).' && chmod 664 '.escapeshellarg($ic));
 }
-function update_finish($root){
- if(is_dir('/etc/didar')&&is_writable('/etc/didar')&&is_file($root.'/install/schema.sql')){
-  @copy($root.'/install/schema.sql','/etc/didar/schema.sql');
+function nginx_hide(){
+ $root=dirname(__DIR__);
+ if(is_file($root.'/schema.sql')&&is_dir('/etc/didar')&&is_writable('/etc/didar')){
+  @copy($root.'/schema.sql','/etc/didar/schema.sql');
   @chmod('/etc/didar/schema.sql',0600);
  }
- $sh=$root.'/install/didar-update.sh';
+ $sh=$root.'/didar-update.sh';
+ if(!is_file($sh))$sh=$root.'/install/didar-update.sh';
  if(is_file($sh)&&is_dir('/usr/local/sbin')&&is_writable('/usr/local/sbin')){
   @copy($sh,'/usr/local/sbin/didar-update');
   @chmod('/usr/local/sbin/didar-update',0755);
  }
+ $f='/etc/nginx/sites-available/didar';
+ if(!is_file($f)||!is_writable($f))return;
+ $t=@file_get_contents($f);
+ if(!is_string($t)||$t===''||str_contains($t,'location = /schema.sql'))return;
+ $add=" location = /schema.sql { deny all; }\n location = /ubuntu.sh { deny all; }\n location = /didar-update.sh { deny all; }\n";
+ $n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$t,1);
+ if(is_string($n)&&$n!==$t){
+  @file_put_contents($f,$n);
+  if(didar_fn('exec'))exec('nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1');
+ }
+}
+function update_finish($root){
+ if(is_dir('/etc/didar')&&is_writable('/etc/didar')){
+  foreach([$root.'/schema.sql',$root.'/install/schema.sql'] as $s){
+   if(is_file($s)){@copy($s,'/etc/didar/schema.sql');@chmod('/etc/didar/schema.sql',0600);break;}
+  }
+ }
+ foreach([$root.'/didar-update.sh',$root.'/install/didar-update.sh'] as $sh){
+  if(is_file($sh)&&is_dir('/usr/local/sbin')&&is_writable('/usr/local/sbin')){
+   @copy($sh,'/usr/local/sbin/didar-update');
+   @chmod('/usr/local/sbin/didar-update',0755);
+   break;
+  }
+ }
+ if(function_exists('posix_geteuid')&&posix_geteuid()===0)nginx_hide();
  if(is_file($root.'/storage/installed.lock')){
+  @unlink($root.'/install.php');
+  @unlink($root.'/schema.sql');
   @unlink($root.'/install/install.php');
   @unlink($root.'/install/schema.sql');
  }

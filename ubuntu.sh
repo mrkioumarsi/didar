@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
   --admin-user) ADMIN_USER="${2:-}"; shift 2;;
   --admin-pass) ADMIN_PASS="${2:-}"; shift 2;;
   --admin-name) ADMIN_NAME="${2:-}"; shift 2;;
-  *) echo "sudo bash install/ubuntu.sh --domain meet.example.com --email you@example.com"; exit 1;;
+  *) echo "sudo bash ubuntu.sh --domain meet.example.com --email you@example.com"; exit 1;;
  esac
 done
 if [ "$(id -u)" -ne 0 ]; then echo "Run this script as root"; exit 1; fi
@@ -298,7 +298,9 @@ ${HTTP2}
   fastcgi_pass unix:${PHPSOCK};
   fastcgi_read_timeout 120s;
  }
- location ^~ /install/ { deny all; }
+ location = /schema.sql { deny all; }
+ location = /ubuntu.sh { deny all; }
+ location = /didar-update.sh { deny all; }
  location ~ ^/(storage|lib)/ { deny all; }
  location ~ /(config\.php|config\.local\.php)\$ { deny all; }
  location ~ /\. { deny all; }
@@ -354,7 +356,7 @@ file_put_contents($f,"<?php\n\$C=".var_export($C,true).";\n");
 '
 chown root:www-data "$APPDIR/config.local.php"
 chmod 640 "$APPDIR/config.local.php"
-if [ -f "$APPDIR/install/schema.sql" ]; then cp "$APPDIR/install/schema.sql" /etc/didar/schema.sql; fi
+if [ -f "$APPDIR/schema.sql" ]; then cp "$APPDIR/schema.sql" /etc/didar/schema.sql; fi
 if [ ! -f /etc/didar/schema.sql ]; then echo "schema.sql is missing"; exit 1; fi
 chmod 600 /etc/didar/schema.sql
 find "$APPDIR/storage" -mindepth 1 ! -name '.gitkeep' -delete
@@ -403,9 +405,9 @@ PHP
 install -d -o www-data -g www-data -m 750 "$APPDIR/storage/sessions"
 chown -R www-data:www-data "$APPDIR/storage" "$APPDIR/assets/avatars"
 chmod 750 "$APPDIR/storage"
-rm -f "$APPDIR/install/install.php" "$APPDIR/install/schema.sql"
-if [ ! -f "$APPDIR/install/didar-update.sh" ]; then echo "Updater script is missing"; exit 1; fi
-install -m 755 "$APPDIR/install/didar-update.sh" /usr/local/sbin/didar-update
+rm -f "$APPDIR/install.php" "$APPDIR/schema.sql"
+if [ ! -f "$APPDIR/didar-update.sh" ]; then echo "Updater script is missing"; exit 1; fi
+install -m 755 "$APPDIR/didar-update.sh" /usr/local/sbin/didar-update
 printf '%s\n' "$APPDIR" > /etc/didar/appdir
 chmod 644 /etc/didar/appdir
 printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update\n' > /etc/sudoers.d/didar

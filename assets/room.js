@@ -27,31 +27,36 @@ function sfuStart(){
  if(!window.LivekitClient){toast(t('err.sfu.sdk'));return Promise.resolve()}
  const C=LivekitClient;
  lk=new C.Room({adaptiveStream:true,dynacast:true});
- lk.on(C.RoomEvent.TrackSubscribed,(track,pub,p)=>{sfuAttach(p.identity,pub.source,track)});
- lk.on(C.RoomEvent.TrackUnsubscribed,(track,pub,p)=>{sfuDetach(p.identity,pub.source,track)});
+ lk.on(C.RoomEvent.TrackPublished,(pub)=>{try{pub.setSubscribed(true)}catch(e){}});
+ lk.on(C.RoomEvent.TrackSubscribed,(track,pub,p)=>{sfuAttach(p.identity,pub&&pub.source,track)});
+ lk.on(C.RoomEvent.TrackUnsubscribed,(track,pub,p)=>{sfuDetach(p.identity,pub&&pub.source,track)});
  lk.on(C.RoomEvent.LocalTrackUnpublished,(pub)=>{if(pub.source===C.Track.Source.ScreenShare){L.scr[0]=null;L.scrS[0]=null;$('#s'+S.pid+'-0').remove();state()}});
  lk.on(C.RoomEvent.Disconnected,()=>toast(t('err.sfu')));
- return lk.connect(S.lk.url,S.lk.token).then(()=>{uh='';ui()}).catch(()=>toast(t('err.sfu')));
+ if(C.RoomEvent.AudioPlaybackStatusChanged)lk.on(C.RoomEvent.AudioPlaybackStatusChanged,()=>{if(lk.canPlaybackAudio===false){blocked=true;$('#snd').removeClass('na')}});
+ return lk.connect(S.lk.url,S.lk.token).then(()=>{sfuSweep();if(lk.startAudio)lk.startAudio().catch(()=>{blocked=true;$('#snd').removeClass('na')});uh='';ui()}).catch(()=>toast(t('err.sfu')));
 }
 function sfuSlot(source){const Src=LivekitClient.Track.Source;if(source===Src.Microphone||source==='microphone')return 'mic';if(source===Src.Camera||source==='camera')return 'cam';if(source===Src.ScreenShare||source==='screen_share')return 'scr';return ''}
 function sfuBox(id){return pcs[id]||(pcs[id]={pc:{close(){}},rs:[],snd:[],q:[],au:null,st:'connected',ct:'sfu'})}
-function sfuAttach(id,source,track){const slot=sfuSlot(source);if(!slot)return;const o=sfuBox(id);const st=new MediaStream([track.mediaStreamTrack]);if(slot==='mic'){if(o.au){try{track.detach(o.au)}catch(e){}o.au.remove()}o.au=track.attach();o.au.autoplay=true;o.au.muted=!spk;document.body.appendChild(o.au);o.au.play&&o.au.play().catch(()=>{blocked=true;$('#snd').removeClass('na')});o.rs[0]=st;mixAdd(st)}else if(slot==='cam')o.rs[1]=st;else o.rs[2]=st;uh='';refreshVids();ui()}
-function sfuDetach(id,source,track){const slot=sfuSlot(source);if(!slot)return;const o=pcs[id];if(!o)return;if(slot==='mic'){if(o.au){try{track.detach(o.au)}catch(e){}o.au.remove();o.au=null}o.rs[0]=null}else if(slot==='cam')o.rs[1]=null;else o.rs[2]=null;uh='';ui()}
+function sfuPlay(el){if(el&&el.play)el.play().catch(()=>{blocked=true;$('#snd').removeClass('na')})}
+function sfuAttach(id,source,track){const slot=sfuSlot(source);if(!slot||!track)return;const o=sfuBox(id);const mst=track.mediaStreamTrack?new MediaStream([track.mediaStreamTrack]):null;if(slot==='mic'){if(o.auT&&o.auT!==track){try{o.auT.detach()}catch(e){}}o.auT=track;if(o.au){try{o.au.remove()}catch(e){}}o.au=track.attach();o.au.autoplay=true;o.au.muted=!spk;document.body.appendChild(o.au);o.rs[0]=mst;if(mst)mixAdd(mst);sfuPlay(o.au)}else if(slot==='cam'){o.vcam=track;o.rs[1]=mst}else{o.vscr=track;o.rs[2]=mst}uh='';ui()}
+function sfuDetach(id,source,track){const slot=sfuSlot(source);if(!slot)return;const o=pcs[id];if(!o)return;if(slot==='mic'){if(o.au){try{if(track&&track.detach)track.detach(o.au)}catch(e){}o.au.remove();o.au=null}o.auT=null;o.rs[0]=null}else if(slot==='cam'){o.vcam=null;o.rs[1]=null}else{o.vscr=null;o.rs[2]=null}uh='';ui()}
+function sfuSweep(){if(!lk||!lk.remoteParticipants)return;lk.remoteParticipants.forEach(p=>{if(!p.trackPublications)return;p.trackPublications.forEach(pub=>{if(pub.track)sfuAttach(p.identity,pub.source,pub.track);else try{pub.setSubscribed(true)}catch(e){}})})}
 function sfuSync(){parts.forEach(p=>{if(p.id!=S.pid&&lk&&lk.remoteParticipants&&lk.remoteParticipants.has(String(p.id)))sfuBox(p.id)});Object.keys(pcs).forEach(id=>{if(!parts.some(p=>p.id==id)){const o=pcs[id];if(o&&o.au){try{o.au.remove()}catch(e){}}if(o&&o.pc&&o.pc.close)try{o.pc.close()}catch(e){}delete pcs[id]}})}
 async function sfuReady(){if(sfuP)await sfuP;if(!lk)throw new Error('lk')}
 function peer(id,init){const pc=new RTCPeerConnection({iceServers:S.ice,iceTransportPolicy:S.policy||'all'}),o={pc,rs:[],snd:[],q:[],au:null};pcs[id]=o;
  if(init){o.snd=[pc.addTransceiver('audio').sender];for(let i=1;i<SL;i++)o.snd.push(pc.addTransceiver('video').sender);useLocal(o)}
- pc.ontrack=e=>{const i=pc.getTransceivers().indexOf(e.transceiver);o.rs[i]=new MediaStream([e.track]);if(i==0)attachAudio(id);else refreshVids()};
+ pc.ontrack=e=>{const i=pc.getTransceivers().indexOf(e.transceiver);if(i<0)return;o.rs[i]=new MediaStream([e.track]);const kick=()=>{uh='';if(i===0)attachAudio(id);ui()};e.track.onunmute=kick;e.track.onmute=()=>{uh='';ui()};kick()};
  pc.onicecandidate=e=>e.candidate&&sig(id,'ice',e.candidate);
  pc.oniceconnectionstatechange=()=>{o.st=pc.iceConnectionState;uh='';if(['connected','completed'].includes(o.st))pc.getStats().then(rp=>{rp.forEach(x=>{if(x.type=='candidate-pair'&&x.nominated&&x.state=='succeeded'){const l=rp.get(x.localCandidateId);o.ct=l&&l.candidateType;uh=''}})}).catch(()=>{});if(o.st=='failed')toast(t('room.novideo'))};
  pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState)&&pcs[id]===o)drop(id)};return o}
-function useLocal(o){const t=[L.mic,L.cam,...L.scr];o.snd.forEach((s,i)=>s&&s.replaceTrack(t[i]||null))}
-const useAll=()=>Object.values(pcs).forEach(useLocal);
+async function useLocal(o){const tracks=[L.mic,L.cam,...L.scr];let changed=false;for(let i=0;i<o.snd.length;i++){const s=o.snd[i];if(!s)continue;const nt=tracks[i]||null;if(s.track===nt)continue;changed=true;try{await s.replaceTrack(nt)}catch(e){}}return changed}
+const useAll=()=>Object.entries(pcs).forEach(([id,o])=>{Promise.resolve(useLocal(o)).then(ch=>{if(ch)sendOffer(id)})});
+function sendOffer(id){const o=pcs[id];if(!o||S.mode==='sfu')return;o.oq=(o.oq||Promise.resolve()).then(async()=>{for(let n=0;n<20&&pcs[id]&&o.pc.signalingState!=='stable';n++)await new Promise(r=>setTimeout(r,50));if(!pcs[id]||o.pc.signalingState!=='stable')return;const d=await o.pc.createOffer();if(o.pc.signalingState!=='stable')return;await o.pc.setLocalDescription(d);await sig(id,'offer',o.pc.localDescription)}).catch(()=>{})}
 function drop(id){const o=pcs[id];if(!o)return;try{o.pc.close()}catch(e){}o.au&&o.au.remove();delete pcs[id]}
-function connect(id){const o=peer(id,true);o.pc.createOffer().then(d=>o.pc.setLocalDescription(d)).then(()=>sig(id,'offer',o.pc.localDescription))}
-function attachAudio(id){const o=pcs[id];if(!o||o.au)return;o.au=$('<audio autoplay>').prop({srcObject:o.rs[0],muted:!spk}).appendTo('body')[0];o.au.play&&o.au.play().catch(()=>{blocked=true;$('#snd').removeClass('na')});mixAdd(o.rs[0])}
+function connect(id){peer(id,true);sendOffer(id)}
+function attachAudio(id){const o=pcs[id];if(!o||!o.rs[0])return;if(!o.au){o.au=$('<audio autoplay playsinline>').appendTo('body')[0];mixAdd(o.rs[0])}if(o.au.srcObject!==o.rs[0])o.au.srcObject=o.rs[0];o.au.muted=!spk;o.au.play&&o.au.play().catch(()=>{blocked=true;$('#snd').removeClass('na')})}
 let blocked=false;
-const unlock=()=>{Object.values(pcs).forEach(o=>o.au&&o.au.play&&o.au.play().catch(()=>{}));blocked=false;$('#snd').addClass('na')};
+const unlock=()=>{Object.values(pcs).forEach(o=>o.au&&o.au.play&&o.au.play().catch(()=>{}));if(lk&&lk.startAudio)lk.startAudio().catch(()=>{});blocked=false;$('#snd').addClass('na')};
 $(document).on('pointerdown keydown touchstart',()=>{if(blocked)unlock()});$('#snd').click(unlock);
 async function onSig(s){const d=JSON.parse(s.data),id=s.from_pid;
  if(s.type=='wbadd'){objs.push(d);redraw();setView('board');return}
@@ -60,12 +65,12 @@ async function onSig(s){const d=JSON.parse(s.data),id=s.from_pid;
  if(s.type=='wbreq'){if(objs.length&&canB())sig(id,'wbfull',{o:objs});return}
  if(s.type=='wbfull'){if(!gotFull){gotFull=1;objs=d.o;redraw()}return}
  if(S.mode==='sfu')return;
- if(s.type=='offer'){drop(id);const o=peer(id,false);await o.pc.setRemoteDescription(d);o.snd=[];
-  o.pc.getTransceivers().forEach((t,i)=>{t.direction='sendrecv';o.snd[i]=t.sender});useLocal(o);
-  await o.pc.setLocalDescription(await o.pc.createAnswer());sig(id,'answer',o.pc.localDescription);o.q.forEach(c=>o.pc.addIceCandidate(c));o.q=[]}
+ if(s.type=='offer'){let o=pcs[id];if(!o)o=peer(id,false);const polite=+S.pid<+id;if(o.pc.signalingState!=='stable'){if(!polite)return;try{await o.pc.setLocalDescription({type:'rollback'})}catch(e){}}if(o.pc.signalingState!=='stable')return;await o.pc.setRemoteDescription(d);o.pc.getTransceivers().forEach((tr,i)=>{tr.direction='sendrecv';o.snd[i]=tr.sender});await useLocal(o);await o.pc.setLocalDescription(await o.pc.createAnswer());sig(id,'answer',o.pc.localDescription);o.q.splice(0).forEach(c=>o.pc.addIceCandidate(c).catch(()=>{}))}
  else{const o=pcs[id];if(!o)return;if(s.type=='answer'){await o.pc.setRemoteDescription(d);o.q.forEach(c=>o.pc.addIceCandidate(c));o.q=[]}
   else if(s.type=='ice'){o.pc.remoteDescription?o.pc.addIceCandidate(d).catch(()=>{}):o.q.push(d)}}}
 function vid(el,st){const v=$('<video autoplay playsinline muted>').prop({srcObject:st,muted:true}).appendTo(el)[0];v.onplaying=()=>el.closest('.tile').find('.wait').remove();v.play&&v.play().catch(()=>{})}
+function putLk(el,track){if(!el.length||!track||!track.attach)return;if(el.data('lk')===track&&el.find('video').length){const v=el.find('video')[0];if(v.paused&&v.play)v.play().catch(()=>{});return}const old=el.data('lk');if(old&&old.detach){try{old.detach()}catch(e){}}el.empty();const v=track.attach();v.autoplay=true;v.playsInline=true;v.muted=true;el.append(v);el.data('lk',track);v.play&&v.play().catch(()=>{});el.closest('.tile').find('.wait').remove()}
+function mediaOn(p){const o=pcs[p.id]||{};if(p.id==S.pid)return{cam:L.cam?1:0,scr:mask()};let scr=+p.screen_on||0;if(S.mode==='sfu'){if(o.vscr)scr|=1;return{cam:(+p.cam_on||o.vcam)?1:0,scr}}const up=i=>{const st=o.rs&&o.rs[i];const tr=st&&st.getVideoTracks&&st.getVideoTracks()[0];return !!(tr&&tr.readyState!=='ended'&&!tr.muted)};for(let k=0;k<3;k++)if(up(k+2))scr|=1<<k;return{cam:(+p.cam_on||up(1))?1:0,scr}}
 function refreshVids(){Object.entries(pcs).forEach(([id,o])=>o.rs.forEach((st,i)=>{if(!st||i<1)return;const el=i==1?$('#t'+id+'.camon .vw'):$('#s'+id+'-'+(i-2)+' .vw');if(el.length&&!el.find('video').length)vid(el,st)}))}
 function fs(el){const d=document;if(d.fullscreenElement||d.webkitFullscreenElement){(d.exitFullscreen||d.webkitExitFullscreen).call(d);return}
  if(el.classList.contains('fsx')){el.classList.remove('fsx');return}const f=el.requestFullscreen||el.webkitRequestFullscreen;
@@ -78,14 +83,21 @@ const PM=[['mic','mic','perm.mic'],['cam','cam','perm.cam'],['screen','screen','
 function ui(){const mg=+S.me.mgr?1:0,seen={},dnm={};parts.forEach(p=>{seen[p.name]=(seen[p.name]||0)+1;dnm[p.id]=seen[p.name]>1?p.name+' ('+locn(seen[p.name])+')':p.name});$('#cnt').text(locn(parts.length));
  const vis=parts.filter(p=>+p.mgr||+p.can_mic||+p.can_cam||+p.can_screen);
  vis.forEach(p=>{let el=$('#t'+p.id);if(!el.length)el=$(`<div class="tile" id="t${p.id}"><div class="vw"></div><div class="av" ${p.av?`style="background-image:url(assets/avatars/${encodeURIComponent(p.av)});color:transparent"`:''}>${esc((p.name||'?')[0])}</div><div class="nm"><span class="mi"></span><span></span></div><div class="tact"><button class="tb" data-fs="1">${ic('max',16)}</button></div></div>`).appendTo('#tiles');
-  const on=+p.mic_on?1:0,cm=+p.cam_on?1:0;el.toggleClass('camon',!!cm).toggleClass('mc',!!on);
+  const mo=mediaOn(p),on=(+p.mic_on||(p.id==S.pid&&L.mic)||(S.mode==='sfu'&&pcs[p.id]&&pcs[p.id].auT))?1:0,cm=mo.cam;el.toggleClass('camon',!!cm).toggleClass('mc',!!on);
   if(el.data('m')!==on){el.data('m',on);el.find('.mi').html(`<span class="${on?'on':'off'}">${ic(on?'mic':'micoff',14)}</span>`)}
-  if(!cm)el.find('video').remove();else if(p.id==S.pid&&L.camS&&!el.find('video').length)vid(el.find('.vw'),L.camS);
+  if(!cm){const box=el.find('.vw');const old=box.data('lk');if(old&&old.detach){try{old.detach()}catch(e){}}box.removeData('lk');el.find('video').remove()}
+  else if(p.id==S.pid&&L.camS&&!el.find('video').length)vid(el.find('.vw'),L.camS);
+  else if(p.id!=S.pid&&pcs[p.id]&&pcs[p.id].vcam)putLk(el.find('.vw'),pcs[p.id].vcam);
+  else if(p.id!=S.pid&&pcs[p.id]&&pcs[p.id].rs[1]&&!el.find('video').length)vid(el.find('.vw'),pcs[p.id].rs[1]);
   el.find('.nm span:last').text(dnm[p.id]+(p.id==S.pid?' ('+t('room.you')+')':''))});
  $('#tiles .tile').each(function(){if(!vis.some(p=>'t'+p.id==this.id))$(this).remove()});
- const keys=[];parts.forEach(p=>{for(let k=0;k<3;k++){const id='s'+p.id+'-'+k;let el=$('#'+id);
-  if((+p.screen_on>>k)&1){keys.push(id);if(!el.length)el=$(`<div class="tile scr" id="${id}"><div class="vw"></div><div class="wait">${t('room.receiving')}</div><div class="nm"><span>${ic('screen',14)}</span><span></span></div><div class="tact"><button class="tb" data-fs="1" title="${t('room.fs')}">${ic('max',16)}</button></div></div>`).appendTo('#scrs');
-   el.find('.nm span:last').text(dnm[p.id]+' · '+t('room.desktop'));if(p.id==S.pid&&L.scrS[k]&&!el.find('video').length)vid(el.find('.vw'),L.scrS[k])}else el.remove()}});
+ const keys=[];parts.forEach(p=>{const mo=mediaOn(p),o=pcs[p.id]||{};for(let k=0;k<3;k++){const id='s'+p.id+'-'+k;let el=$('#'+id);
+  if((mo.scr>>k)&1){keys.push(id);if(!el.length)el=$(`<div class="tile scr" id="${id}"><div class="vw"></div><div class="wait">${t('room.receiving')}</div><div class="nm"><span>${ic('screen',14)}</span><span></span></div><div class="tact"><button class="tb" data-fs="1" title="${t('room.fs')}">${ic('max',16)}</button></div></div>`).appendTo('#scrs');
+   el.find('.nm span:last').text(dnm[p.id]+' · '+t('room.desktop'));
+   if(p.id==S.pid&&L.scrS[k]&&!el.find('video').length)vid(el.find('.vw'),L.scrS[k]);
+   else if(p.id!=S.pid&&k===0&&o.vscr)putLk(el.find('.vw'),o.vscr);
+   else if(p.id!=S.pid&&o.rs&&o.rs[k+2]&&!el.find('video').length)vid(el.find('.vw'),o.rs[k+2])}
+  else if(el.length){const old=el.find('.vw').data('lk');if(old&&old.detach){try{old.detach()}catch(e){}}el.remove()}}});
  const ks=keys.join();if(ks!==prevScr){if(keys.some(k=>!prevScr.split(',').includes(k)))setView('media');prevScr=ks}
  $('#media').toggleClass('hasscr',keys.length>0);
  $('#scrs .wait').each(function(){const el=$(this).closest('.tile');if(!el.data('w'))el.data('w',Date.now());else if(Date.now()-el.data('w')>10000)$(this).text(t('room.novideo'))});

@@ -1,7 +1,7 @@
 <?php
 require 'config.php';
 if(!file_exists(__DIR__.'/storage/installed.lock')){
- if(is_file(__DIR__.'/install/install.php')){header('Location: install/install.php');exit;}
+ if(is_file(__DIR__.'/install.php')){header('Location: install.php');exit;}
  http_response_code(503);
  header('Content-Type: text/plain; charset=utf-8');
  echo t('install.missing');
@@ -61,10 +61,6 @@ $cal=app_cal();
 <div class="inl"><button type="button" class="btn ghost sm" id="updchk"><?=t('upd.check')?></button><button type="button" class="btn sm" id="updgo" disabled><?=t('upd.apply')?></button></div></div>
 </div>
 <div class="sbar"><button class="btn" id="ss"><?=t('set.save')?></button></div>
-<h3 class="gh"><?=t('help.title')?></h3>
-<details class="help" open><summary><?=t('help.dns.sum')?></summary><div class="hb"><?=t('help.dns.body')?></div></details>
-<details class="help" open><summary><?=t('help.run.sum')?></summary><div class="hb"><?=t('help.run.body')?></div></details>
-<details class="help"><summary><?=t('help.after.sum')?></summary><div class="hb"><?=t('help.after.body')?></div></details>
 </section></div>
 <button class="fab adm" id="fab" title="<?=h(t('rooms.new'))?>" data-i="plus" data-s="26"></button></div>
 <?=i18n_boot_js()?>

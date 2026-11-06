@@ -1,6 +1,6 @@
 <?php
-require __DIR__.'/../config.php';
-$root=dirname(__DIR__);
+require __DIR__.'/config.php';
+$root=__DIR__;
 if(isset($_GET['lang'])){
  $c=lang_code($_GET['lang']);
  if($c){lang_cookie($c);header('Location: install.php');exit;}
@@ -86,20 +86,20 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
     file_put_contents($root.'/storage/installed.lock','1');
     @unlink(__DIR__.'/schema.sql');
     @unlink(__FILE__);
-    header('Location: ../index.php');
+    header('Location: index.php');
     exit;
    }catch(Throwable $e){log_err($e);$err=t('install.dbfail');}
   }
  }
 }
 $fv=function($k,$d='')use($in){return h($in($k,$d));};
-?><!doctype html><html lang="<?=h($cur)?>" dir="<?=h($dir)?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=h(t('install.title'))?></title><link rel="stylesheet" href="../assets/app.css?v=<?=(int)@filemtime($root.'/assets/app.css')?>"><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap" rel="stylesheet"></head><body>
-<div class="loginwrap"><div class="card login" style="max-width:460px;text-align:start"><img src="../assets/icon-192.png" alt="" style="display:block;margin:0 auto"><h2 style="text-align:center"><?=t('install.title')?></h2>
+?><!doctype html><html lang="<?=h($cur)?>" dir="<?=h($dir)?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=h(t('install.title'))?></title><link rel="stylesheet" href="assets/app.css?v=<?=(int)@filemtime($root.'/assets/app.css')?>"><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap" rel="stylesheet"></head><body>
+<div class="loginwrap"><div class="card login" style="max-width:460px;text-align:start"><img src="assets/icon-192.png" alt="" style="display:block;margin:0 auto"><h2 style="text-align:center"><?=t('install.title')?></h2>
 <div class="langs"><?php foreach($langs as $id=>$m):?><a class="<?=$id===$cur?'act':''?>" href="install.php?lang=<?=h($id)?>"><?=h($m['name']??$id)?></a><?php endforeach;?></div>
 <?php if($locked):?>
 <p><?=$done?t('install.done'):t('install.locked')?></p>
 <p><?=t('install.remove')?></p>
-<p><a class="btn" href="../index.php"><?=t('install.open')?></a></p>
+<p><a class="btn" href="index.php"><?=t('install.open')?></a></p>
 <?php else:?>
 <p class="mu"><?=t('install.lead')?></p>
 <p class="hint"><?=t('install.shared')?></p>
