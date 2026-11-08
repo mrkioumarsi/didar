@@ -388,7 +388,8 @@ try{
   if($type==='wbclear'&&!$p['mgr'])fail(t('err.boardclear'));
   if(in_array($type,['fadd','fundo','ffull'],true)&&!($p['mgr']||$p['can_file']||$p['can_board']))fail(t('err.nofileperm'));
   if($type==='fclear'&&!$p['mgr'])fail(t('err.forbidden'));
-  if(in_array($type,['rview','fopen'],true)&&!$p['mgr'])fail(t('err.forbidden'));
+  if($type==='rview'&&!($p['mgr']||$p['can_board']||$p['can_file']))fail(t('err.forbidden'));
+  if($type==='fopen'&&!($p['mgr']||$p['can_file']))fail(t('err.forbidden'));
   if(strlen($P['data']??'')>900000)fail(t('err.toobig'));
   q("INSERT INTO signals(room_id,from_pid,to_pid,type,data) VALUES(?,?,?,?,?)",[$p['room_id'],$p['id'],(int)$P['to'],$type,$P['data']]);
   out(['ok'=>1]);

@@ -245,6 +245,7 @@ return [
 'room.files'=>'Files',
 'room.files.empty'=>'No files yet.',
 'room.files.hint'=>'Upload an image, a video, or a PDF. Notes on an image or PDF stay only for this session.',
+'room.files.get'=>'You can download this file.',
 'room.files.up'=>'Upload',
 'room.files.upok'=>'File uploaded.',
 'room.files.dl'=>'Download',

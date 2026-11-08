@@ -152,8 +152,9 @@ details.help summary:after{content:"";width:9px;height:9px;border-right:2px soli
 .rc-a{padding-top:10px}
 .ucard .av2{box-shadow:0 0 0 3px #fff,0 0 0 4px var(--bd)}
 .scard .sh2{padding-bottom:14px;margin-bottom:8px;border-bottom:1px solid var(--bd)}
-#board:fullscreen,#board.fsx,#board:-webkit-full-screen{display:flex;flex-direction:column;box-sizing:border-box;width:100%;height:100%;background:#fff;padding:12px}
-#board:fullscreen .cvw,#board.fsx .cvw,#board:-webkit-full-screen .cvw{flex:1;width:100%;min-height:0}
+#board:fullscreen,#board.fsx,#board:-webkit-full-screen{display:flex!important;flex-direction:column;box-sizing:border-box;width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;margin:0!important;background:#fff;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));border-radius:0!important}
+#board.fsx{position:fixed!important;inset:0!important;z-index:200}
+#board:fullscreen .cvw,#board.fsx .cvw,#board:-webkit-full-screen .cvw{flex:1;width:100%;min-height:0;background:#fff;border-radius:0}
 .seg#mainnav{margin-bottom:22px}
 html[dir=ltr] .login label{text-align:left}
 html[dir=ltr] .srch2 svg{right:auto;left:13px}
@@ -194,7 +195,7 @@ html[dir=ltr] .sw input:checked+i:before{right:auto;left:21px}
 #fcv{background:transparent;touch-action:none;cursor:crosshair}#fcv.pass{pointer-events:none;cursor:grab}
 .pem{height:120px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.45}
 #sslmode{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}#sslmode .btn.on{background:var(--pr);color:#fff}
-@media(max-width:820px){.frow{grid-template-columns:1fr;grid-template-rows:72px minmax(0,1fr);min-height:0}.flist{max-height:none;height:72px;display:flex;flex-direction:row;align-items:stretch;gap:6px;overflow-x:auto;overflow-y:hidden}.fitem{width:auto;min-width:132px;max-width:180px;flex:none}.fitem.fup{min-width:112px;margin:0}.fitem b{max-width:120px}.fpad{display:flex;align-items:center;flex:none;padding:0 8px;white-space:nowrap}.fbar .mu{display:none}.fstage{min-height:0}.sth .seg button{padding:0 10px}}
+@media(max-width:820px){.frow{grid-template-columns:1fr;grid-template-rows:72px minmax(0,1fr);min-height:0}.flist{max-height:none;height:72px;display:flex;flex-direction:row;align-items:stretch;gap:6px;overflow-x:auto;overflow-y:hidden}.fitem{width:auto;min-width:132px;max-width:180px;flex:none}.fitem.fup{min-width:112px;margin:0}.fitem b{max-width:120px}.fpad{display:flex;align-items:center;flex:none;padding:0 8px;white-space:nowrap}.fbar #fhint{display:none}.fstage{min-height:0}.sth .seg button{padding:0 10px}}
 .recbar span{position:relative;z-index:1;display:block;text-align:center;line-height:28px;font-size:.78rem}
 .recitem{border-bottom:1px solid var(--bd)}.recitem:last-child{border-bottom:0}
 .recrow{display:flex;align-items:center;gap:8px}.recopen{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 2px;border:0;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}

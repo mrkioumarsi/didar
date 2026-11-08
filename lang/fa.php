@@ -245,6 +245,7 @@ return [
 'room.files'=>'فایل‌ها',
 'room.files.empty'=>'هنوز فایلی نیست.',
 'room.files.hint'=>'عکس، ویدیو یا PDF بگذارید. یادداشت روی عکس و PDF فقط همین جلسه می‌ماند.',
+'room.files.get'=>'می‌توانید همین فایل را دانلود کنید.',
 'room.files.up'=>'بارگذاری',
 'room.files.upok'=>'فایل بارگذاری شد.',
 'room.files.dl'=>'دانلود',
