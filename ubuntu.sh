@@ -161,11 +161,15 @@ cert=/etc/coturn/certs/fullchain.pem
 pkey=/etc/coturn/certs/privkey.pem
 EOF
 install -d /etc/letsencrypt/renewal-hooks/deploy
-cat > /etc/letsencrypt/renewal-hooks/deploy/didar.sh <<EOF
+cat > /etc/letsencrypt/renewal-hooks/deploy/didar.sh <<'EOF'
 #!/bin/bash
 set -e
-cp /etc/letsencrypt/live/${DOMAIN}/fullchain.pem /etc/coturn/certs/fullchain.pem
-cp /etc/letsencrypt/live/${DOMAIN}/privkey.pem /etc/coturn/certs/privkey.pem
+if [ -f /etc/didar/ssl-mode ] && grep -qx manual /etc/didar/ssl-mode; then
+ exit 0
+fi
+DOM="$(tr -d '\r\n' < /etc/didar/domain)"
+cp "/etc/letsencrypt/live/${DOM}/fullchain.pem" /etc/coturn/certs/fullchain.pem
+cp "/etc/letsencrypt/live/${DOM}/privkey.pem" /etc/coturn/certs/privkey.pem
 chown turnserver:turnserver /etc/coturn/certs/fullchain.pem /etc/coturn/certs/privkey.pem
 chmod 640 /etc/coturn/certs/fullchain.pem /etc/coturn/certs/privkey.pem
 systemctl restart coturn
@@ -308,6 +312,8 @@ ${HTTP2}
  location = /ubuntu.sh { deny all; }
  location = /didar-update.sh { deny all; }
  location = /didar-renew.sh { deny all; }
+ location = /didar-ssl.sh { deny all; }
+ location = /didar-uninstall.sh { deny all; }
  location = /install.php { deny all; }
  location ~ ^/(storage|lib)/ { deny all; }
  location ~ /(config\.php|config\.local\.php)\$ { deny all; }
@@ -404,7 +410,7 @@ $rep=$pdo->prepare('REPLACE INTO settings(k,v) VALUES(?,?)');
 $rows=['brand'=>'دیدار','domain'=>'https://'.$domain,'stun'=>'stun:'.$domain.':3478','turn_url'=>'turn:'.$domain.':3478,turn:'.$domain.':3478?transport=tcp,turns:'.$domain.':5349?transport=tcp','turn_secret'=>(string)getenv('DIDAR_TURNSEC'),'turn_user'=>'','turn_pass'=>'','ice_relay'=>'0','quality'=>'mid','link_mode'=>'sfu','lk_url'=>'wss://'.$domain,'lk_key'=>(string)getenv('DIDAR_LKKEY'),'lk_secret'=>(string)getenv('DIDAR_LKSEC'),'calendar'=>'jalali','timezone'=>'Asia/Tehran','pass_policy'=>'low','default_lang'=>'fa'];
 foreach($rows as $k=>$v) $rep->execute([$k,(string)$v]);
 $pdo->prepare("INSERT INTO users(username,pass,name,role,lang) VALUES(?,?,?,'admin','fa')")->execute([$user,password_hash((string)$pw,PASSWORD_DEFAULT),$name]);
-file_put_contents($app.'/storage/schema.ok','4');
+file_put_contents($app.'/storage/schema.ok','5');
 file_put_contents($app.'/storage/seed.ok','1');
 file_put_contents($app.'/storage/installed.lock','1');
 file_put_contents('/etc/didar/admin.txt',"username=".$user."\npassword=".$pw."\n");
@@ -414,14 +420,15 @@ install -d -o www-data -g www-data -m 750 "$APPDIR/storage/sessions"
 chown -R www-data:www-data "$APPDIR/storage" "$APPDIR/assets/avatars"
 chmod 750 "$APPDIR/storage"
 rm -f "$APPDIR/install.php" "$APPDIR/schema.sql"
-if [ ! -f "$APPDIR/didar-update.sh" ] || [ ! -f "$APPDIR/didar-renew.sh" ]; then echo "Updater script is missing"; exit 1; fi
+if [ ! -f "$APPDIR/didar-update.sh" ] || [ ! -f "$APPDIR/didar-renew.sh" ] || [ ! -f "$APPDIR/didar-ssl.sh" ]; then echo "Updater script is missing"; exit 1; fi
 install -m 755 "$APPDIR/didar-update.sh" /usr/local/sbin/didar-update
 install -m 755 "$APPDIR/didar-renew.sh" /usr/local/sbin/didar-renew
+install -m 755 "$APPDIR/didar-ssl.sh" /usr/local/sbin/didar-ssl
 printf '%s\n' "$APPDIR" > /etc/didar/appdir
 chmod 644 /etc/didar/appdir
 printf '%s\n' "$DOMAIN" > /etc/didar/domain
 chmod 644 /etc/didar/domain
-printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update, /usr/local/sbin/didar-renew\n' > /etc/sudoers.d/didar
+printf 'www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update, /usr/local/sbin/didar-renew, /usr/local/sbin/didar-ssl\n' > /etc/sudoers.d/didar
 chmod 440 /etc/sudoers.d/didar
 visudo -cf /etc/sudoers.d/didar >/dev/null
 ufw allow 3478/tcp

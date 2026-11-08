@@ -23,6 +23,8 @@ max:'<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line
 trash:'<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 down:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
 sheet:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" x2="16" y1="13" y2="13"/><line x1="8" x2="16" y1="17" y2="17"/>',
+hand:'<path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+pic:'<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
 video:'<polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2"/>',
 send:'<line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',x:'<line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/>',
 sliders:'<line x1="4" x2="20" y1="7" y2="7"/><line x1="4" x2="20" y1="17" y2="17"/><circle cx="9" cy="7" r="2.5" fill="#fff"/><circle cx="15" cy="17" r="2.5" fill="#fff"/>',
@@ -60,4 +62,4 @@ window.copyText=text=>{const done=()=>toast(t('link.copied'));if(navigator.clipb
 $(document).on('click','[data-copy]',function(){copyText($(this).siblings('pre').text())});
 
 window.ini=n=>esc((n||'?').trim()[0]||'?');
-window.avh=(u,s=40)=>`<span class="av2" style="width:${s}px;height:${s}px;font-size:${Math.round(s*.4)}px;${u&&u.avatar?`background-image:url(assets/avatars/${encodeURIComponent(u.avatar)});color:transparent`:''}">${u&&u.avatar?'':ini(u&&u.name)}</span>`;
+window.avh=(u,s=40)=>`<span class="av2" style="width:${s}px;height:${s}px;font-size:${Math.round(s*.4)}px;${u&&u.avatar?`background-image:url(assets/avatars/${encodeURIComponent(u.avatar)});background-size:cover;background-position:center;background-repeat:no-repeat;color:transparent`:''}">${u&&u.avatar?'':ini(u&&u.name)}</span>`;

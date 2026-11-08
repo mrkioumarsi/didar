@@ -51,6 +51,86 @@ function clean_domain($s){
  if(!preg_match('~^https?://[A-Za-z0-9._:-]+(/[^\s]*)?$~',$s)&&!preg_match('~^[A-Za-z0-9.-]+$~',$s))fail(t('err.domain'));
  return $s;
 }
+function room_file_ok($fn){return (bool)preg_match('/^rf_\d+_\d+_[a-f0-9]+\.(jpg|png|pdf|mp4|webm)$/',(string)$fn);}
+function room_file_unlink($name){$fn=basename((string)$name);if(room_file_ok($fn))@unlink(__DIR__.'/storage/'.$fn);}
+function file_label($raw,$ext){
+ $name=str_replace(['\\','/',"\0"],'',(string)$raw);
+ $name=preg_replace('/[\x00-\x1F\x7F]/','',$name);
+ $name=trim(mb_substr($name,0,120));
+ if($name==='')$name='file.'.$ext;
+ return $name;
+}
+function file_take(){
+ $p=part();
+ if(!$p['mgr']&&!$p['can_file'])fail(t('err.nofileperm'));
+ if(empty($_FILES['f'])||!is_uploaded_file($_FILES['f']['tmp_name']??'')||!empty($_FILES['f']['error']))fail(t('err.nofile'));
+ $add=(int)$_FILES['f']['size'];
+ if($add<5||$add>64*1048576)fail(t('err.filebig'));
+ $tmp=$_FILES['f']['tmp_name'];
+ $fh=fopen($tmp,'rb');
+ $head=$fh?fread($fh,32):'';
+ if($fh)fclose($fh);
+ if(!is_string($head)||strlen($head)<5)fail(t('err.badfile'));
+ $dir=__DIR__.'/storage';
+ $base='rf_'.$p['room_id'].'_'.time().'_'.bin2hex(random_bytes(6));
+ $ext='';$mime='';$kind='';$fp='';
+ if(strncmp($head,"%PDF-",5)===0){$kind='pdf';$ext='pdf';$mime='application/pdf';}
+ elseif(strncmp($head,"\x1A\x45\xDF\xA3",4)===0){$kind='video';$ext='webm';$mime='video/webm';}
+ elseif(strlen($head)>=12&&substr($head,4,4)==='ftyp'){$kind='video';$ext='mp4';$mime='video/mp4';}
+ else{
+  if(!function_exists('imagecreatefromstring'))fail(t('err.badfile'));
+  $raw=file_get_contents($tmp);
+  $im=@imagecreatefromstring($raw===false?'':$raw);
+  if(!$im)fail(t('err.badfile'));
+  $w=imagesx($im);$h=imagesy($im);
+  if($w<1||$h<1||$w>8192||$h>8192||($w*$h)>18000000){imagedestroy($im);fail(t('err.badfile'));}
+  $png=strncmp($head,"\x89PNG",4)===0;
+  $ext=$png?'png':'jpg';
+  $fn=$base.'.'.$ext;
+  $fp=$dir.'/'.$fn;
+  if($png){imagealphablending($im,false);imagesavealpha($im,true);$ok=@imagepng($im,$fp);$mime='image/png';}
+  else{$o=imagecreatetruecolor($w,$h);$bg=imagecolorallocate($o,255,255,255);imagefilledrectangle($o,0,0,$w,$h,$bg);imagecopy($o,$im,0,0,0,0,$w,$h);$ok=@imagejpeg($o,$fp,85);imagedestroy($o);$mime='image/jpeg';}
+  imagedestroy($im);
+  if(!$ok||!is_file($fp))fail(t('err.nosave'));
+  $kind='image';
+ }
+ if($kind!=='image'){
+  $fn=$base.'.'.$ext;
+  $fp=$dir.'/'.$fn;
+  if(!@move_uploaded_file($tmp,$fp))fail(t('err.nosave'));
+ }
+ @chmod($fp,0640);
+ q("INSERT INTO room_files(room_id,user_id,name,file,mime,kind,size,created) VALUES(?,?,?,?,?,?,?,NOW())",[$p['room_id'],$p['user_id']?:null,file_label($_FILES['f']['name']??'',$ext),basename($fp),$mime,$kind,(int)filesize($fp)]);
+ out(['id'=>(int)db()->lastInsertId()]);
+}
+function file_send($id,$inline){
+ $r=q("SELECT * FROM room_files WHERE id=?",[$id])->fetch();
+ if(!$r||!room_access((int)$r['room_id'])){http_response_code(403);die(t('err.forbidden'));}
+ $fn=basename((string)$r['file']);
+ if(!room_file_ok($fn)){http_response_code(403);die(t('err.forbidden'));}
+ $fp=__DIR__.'/storage/'.$fn;
+ if(!is_file($fp)||filesize($fp)<1){http_response_code(404);die(t('err.nofile'));}
+ $ext=strtolower(pathinfo($fn,PATHINFO_EXTENSION));
+ $types=['jpg'=>'image/jpeg','png'=>'image/png','pdf'=>'application/pdf','mp4'=>'video/mp4','webm'=>'video/webm'];
+ $show=str_replace(['"',"\r","\n",'\\'],'',(string)$r['name']);
+ if($show==='')$show=$fn;
+ while(ob_get_level())@ob_end_clean();
+ @ini_set('zlib.output_compression','0');
+ header_remove('Pragma');
+ header_remove('Expires');
+ header_remove('Cache-Control');
+ header('Content-Type: '.($types[$ext]??'application/octet-stream'));
+ header('Content-Disposition: '.($inline?'inline':'attachment').'; filename="'.$fn.'"; filename*=UTF-8\'\''.rawurlencode($show));
+ header('X-Content-Type-Options: nosniff');
+ header('Cache-Control: private, max-age=3600');
+ header('Content-Length: '.filesize($fp));
+ http_response_code(200);
+ $fh=fopen($fp,'rb');
+ if(!$fh){http_response_code(404);die(t('err.nofile'));}
+ while(!feof($fh)&&!connection_aborted()){$buf=fread($fh,1048576);if($buf===false||$buf==='')break;echo $buf;}
+ fclose($fh);
+ exit;
+}
 function clean_lk($s){
  $s=trim((string)$s);
  if($s==='')return '';
@@ -96,7 +176,7 @@ try{
   $u=user();
   $x=['user'=>$u,'brand'=>setting('brand'),'domain'=>setting('domain'),'cal'=>app_cal(),'tz'=>app_tz_name(),'lang'=>html_lang(),'langs'=>[],'pass_min'=>pass_min(),'pass_policy'=>pass_policy(),'mode'=>link_mode()];
   foreach(lang_list() as $id=>$m)$x['langs'][]=['id'=>$id,'name'=>$m['name']];
-  if($u&&$u['role']==='admin')foreach(['stun','turn_url','turn_user','turn_pass','turn_secret','ice_relay','quality','lk_url','lk_key','lk_secret','calendar','timezone','default_lang'] as $k)$x[$k]=setting($k);
+  if($u&&$u['role']==='admin'){foreach(['stun','turn_url','turn_user','turn_pass','turn_secret','ice_relay','quality','lk_url','lk_key','lk_secret','calendar','timezone','default_lang'] as $k)$x[$k]=setting($k);$x['ssl_mode']=setting('ssl_mode')==='manual'?'manual':'auto';}
   out($x);
  case 'ice':need_admin();out(['ice'=>ice_servers()]);
  case 'node':
@@ -121,11 +201,13 @@ try{
   if(!restore_apply($_FILES['f']['tmp_name'])) fail(t('bak.fail'));
   out(['ok'=>1]);
  case 'ssl_renew':need_admin();ssl_renew();
+ case 'ssl_apply':need_admin();ssl_apply();
  case 'rooms_clear':
   need_admin();
   if((string)($P['confirm']??'')!=='1') fail(t('err.forbidden'));
   foreach(glob(__DIR__.'/storage/rec_*')?:[] as $fp){if(preg_match('/^rec_\d+_\d+_[a-f0-9]+\.(webm|mp4|mp4\.part)$/',basename($fp))) @unlink($fp);}
-  foreach(['signals','chat','participants','room_members','recordings','rooms'] as $tb) q('DELETE FROM '.$tb);
+  foreach(glob(__DIR__.'/storage/rf_*')?:[] as $fp){if(room_file_ok(basename($fp))) @unlink($fp);}
+  foreach(['signals','chat','participants','room_members','recordings','room_files','rooms'] as $tb) q('DELETE FROM '.$tb);
   out(['ok'=>1]);
  case 'users_clear':
   need_admin();
@@ -211,6 +293,8 @@ try{
   out(['id'=>(int)db()->lastInsertId()]);
  case 'room_del':
   need_admin();
+  foreach(q("SELECT file FROM room_files WHERE room_id=?",[$P['id']])->fetchAll() as $f)room_file_unlink($f['file']);
+  q("DELETE FROM room_files WHERE room_id=?",[$P['id']]);
   foreach(['rooms'=>'id','room_members'=>'room_id','participants'=>'room_id','signals'=>'room_id','chat'=>'room_id'] as $tb=>$c)q("DELETE FROM $tb WHERE $c=?",[$P['id']]);
   foreach(q("SELECT file FROM recordings WHERE room_id=?",[$P['id']])->fetchAll() as $f)@unlink(__DIR__.'/storage/'.basename($f['file']));
   q("DELETE FROM recordings WHERE room_id=?",[$P['id']]);
@@ -223,7 +307,7 @@ try{
   out(['ok'=>1]);
  case 'members':
   if(!can_manage($P['room_id']))fail(t('err.forbidden'));
-  out(['members'=>q("SELECT u.id,u.name,u.username,u.avatar,m.is_manager,m.can_mic,m.can_cam,m.can_screen,m.can_board FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? ORDER BY u.name",[$P['room_id']])->fetchAll()]);
+  out(['members'=>q("SELECT u.id,u.name,u.username,u.avatar,m.is_manager,m.can_mic,m.can_cam,m.can_screen,m.can_board,m.can_file FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? ORDER BY u.name",[$P['room_id']])->fetchAll()]);
  case 'member_add':
   need_admin();
   foreach(array_filter(explode(',',$P['user_ids']??'')) as $uid)q("INSERT IGNORE INTO room_members(room_id,user_id,is_manager) VALUES(?,?,?)",[$P['room_id'],(int)$uid,(int)($P['is_manager']??0)]);
@@ -234,7 +318,7 @@ try{
   out(['ok'=>1]);
  case 'member_set':
   if(!can_manage($P['room_id']))fail(t('err.forbidden'));
-  q("UPDATE room_members SET can_mic=?,can_cam=?,can_screen=?,can_board=? WHERE room_id=? AND user_id=?",[(int)$P['can_mic'],(int)$P['can_cam'],(int)$P['can_screen'],(int)$P['can_board'],$P['room_id'],$P['user_id']]);
+  q("UPDATE room_members SET can_mic=?,can_cam=?,can_screen=?,can_board=?,can_file=? WHERE room_id=? AND user_id=?",[(int)$P['can_mic'],(int)$P['can_cam'],(int)$P['can_screen'],(int)$P['can_board'],(int)$P['can_file'],$P['room_id'],$P['user_id']]);
   if(user()['role']==='admin')q("UPDATE room_members SET is_manager=? WHERE room_id=? AND user_id=?",[(int)$P['is_manager'],$P['room_id'],$P['user_id']]);
   out(['ok'=>1]);
  case 'settings_save':
@@ -260,20 +344,20 @@ try{
  case 'join':
   $r=q("SELECT * FROM rooms WHERE code=?",[$P['code']??''])->fetch()?:fail(t('err.noroom'));
   $u=user();
-  $pm=[0,0,0,0];
+  $pm=[0,0,0,0,0];
   $name=trim($P['name']??'');
   if(link_mode()==='sfu'&&(trim(setting('lk_url'))===''||trim(setting('lk_key'))===''||trim(setting('lk_secret'))===''))fail(t('err.sfu_missing'));
   if($u){
    $m=q("SELECT * FROM room_members WHERE room_id=? AND user_id=?",[$r['id'],$u['id']])->fetch();
-   if($u['role']==='admin'||($m&&$m['is_manager']))$pm=[1,1,1,1];
-   elseif($m)$pm=[$m['can_mic'],$m['can_cam'],$m['can_screen'],$m['can_board']];
+   if($u['role']==='admin'||($m&&$m['is_manager']))$pm=[1,1,1,1,1];
+   elseif($m)$pm=[$m['can_mic'],$m['can_cam'],$m['can_screen'],$m['can_board'],$m['can_file']];
    else fail(t('err.notmember'));
    $name=$u['name'];
   }else{
    if(!$r['guest_enabled'])fail(t('err.guestoff'));
    if($name==='')fail(t('err.needname'));
   }
-  q("INSERT INTO participants(room_id,user_id,name,is_guest,can_mic,can_cam,can_screen,can_board,joined_at,last_seen) VALUES(?,?,?,?,?,?,?,?,NOW(),NOW())",array_merge([$r['id'],$u['id']??null,mb_substr($name,0,100),$u?0:1],$pm));
+  q("INSERT INTO participants(room_id,user_id,name,is_guest,can_mic,can_cam,can_screen,can_board,can_file,joined_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?,NOW(),NOW())",array_merge([$r['id'],$u['id']??null,mb_substr($name,0,100),$u?0:1],$pm));
   $pid=(int)db()->lastInsertId();
   $_SESSION['p'][$pid]=1;
   $mode=link_mode();
@@ -290,18 +374,20 @@ try{
   $rid=$p['room_id'];
   q("UPDATE participants SET last_seen=NOW(),left_at=NULL WHERE id=?",[$p['id']]);
   q("UPDATE participants SET left_at=last_seen WHERE room_id=? AND left_at IS NULL AND last_seen<NOW()-INTERVAL 15 SECOND",[$rid]);
-  $parts=q("SELECT p.id,p.name,u.avatar av,p.mic_on,p.cam_on,p.screen_on,p.can_mic,p.can_cam,p.can_screen,p.can_board,p.is_guest,(u.role='admin' OR IFNULL(m.is_manager,0)=1) mgr FROM participants p LEFT JOIN users u ON u.id=p.user_id LEFT JOIN room_members m ON m.room_id=p.room_id AND m.user_id=p.user_id WHERE p.room_id=? AND p.left_at IS NULL ORDER BY p.id",[$rid])->fetchAll();
+  $parts=q("SELECT p.id,p.name,u.avatar av,p.mic_on,p.cam_on,p.screen_on,p.can_mic,p.can_cam,p.can_screen,p.can_board,p.can_file,p.is_guest,(u.role='admin' OR IFNULL(m.is_manager,0)=1) mgr FROM participants p LEFT JOIN users u ON u.id=p.user_id LEFT JOIN room_members m ON m.room_id=p.room_id AND m.user_id=p.user_id WHERE p.room_id=? AND p.left_at IS NULL ORDER BY p.id",[$rid])->fetchAll();
   $sigs=q("SELECT id,from_pid,type,data FROM signals WHERE room_id=? AND id>? AND from_pid<>? AND (to_pid=? OR to_pid=0) ORDER BY id LIMIT 200",[$rid,(int)$P['sig'],$p['id'],$p['id']])->fetchAll();
   if(mt_rand(1,30)==1)q("DELETE FROM signals WHERE created<NOW()-INTERVAL 3 MINUTE");
   $cs=(int)$P['chat'];
   $chat=$cs?q("SELECT id,name,text,owner FROM chat WHERE room_id=? AND deleted_at IS NULL AND id>? ORDER BY id",[$rid,$cs])->fetchAll():array_reverse(q("SELECT id,name,text,owner FROM chat WHERE room_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 50",[$rid])->fetchAll());
-  out(['parts'=>$parts,'sigs'=>$sigs,'chat'=>$chat,'cdel'=>q("SELECT id FROM chat WHERE room_id=? AND deleted_at>NOW()-INTERVAL 30 SECOND",[$rid])->fetchAll(PDO::FETCH_COLUMN),'room'=>q("SELECT chat_enabled,rec_enabled FROM rooms WHERE id=?",[$rid])->fetch()]);
+  out(['parts'=>$parts,'sigs'=>$sigs,'chat'=>$chat,'cdel'=>q("SELECT id FROM chat WHERE room_id=? AND deleted_at>NOW()-INTERVAL 30 SECOND",[$rid])->fetchAll(PDO::FETCH_COLUMN),'room'=>q("SELECT chat_enabled,rec_enabled FROM rooms WHERE id=?",[$rid])->fetch(),'files'=>q("SELECT id,name,mime,kind,size FROM room_files WHERE room_id=? ORDER BY id",[$rid])->fetchAll()]);
  case 'signal':
   $p=part();
   $type=$P['type']??'';
-  if(!in_array($type,['offer','answer','ice','wbadd','wbundo','wbclear','wbreq','wbfull'],true))fail(t('err.badop'));
+  if(!in_array($type,['offer','answer','ice','wbadd','wbundo','wbclear','wbreq','wbfull','fadd','fundo','fclear','freq','ffull'],true))fail(t('err.badop'));
   if(in_array($type,['wbadd','wbundo','wbfull'],true)&&!($p['mgr']||$p['can_board']))fail(t('err.noboard'));
   if($type==='wbclear'&&!$p['mgr'])fail(t('err.boardclear'));
+  if(in_array($type,['fadd','fundo','ffull'],true)&&!($p['mgr']||$p['can_file']||$p['can_board']))fail(t('err.nofileperm'));
+  if($type==='fclear'&&!$p['mgr'])fail(t('err.forbidden'));
   if(strlen($P['data']??'')>900000)fail(t('err.toobig'));
   q("INSERT INTO signals(room_id,from_pid,to_pid,type,data) VALUES(?,?,?,?,?)",[$p['room_id'],$p['id'],(int)$P['to'],$type,$P['data']]);
   out(['ok'=>1]);
@@ -337,9 +423,9 @@ try{
   $p=part();
   if(!$p['mgr'])fail(t('err.forbidden'));
   $row=q("SELECT * FROM participants WHERE id=? AND room_id=?",[$P['target'],$p['room_id']])->fetch()?:fail(t('err.session'));
-  $v=[(int)$P['can_mic'],(int)$P['can_cam'],(int)$P['can_screen'],(int)$P['can_board']];
-  q("UPDATE participants SET can_mic=?,can_cam=?,can_screen=?,can_board=? WHERE id=?",array_merge($v,[$row['id']]));
-  if($row['user_id'])q("UPDATE room_members SET can_mic=?,can_cam=?,can_screen=?,can_board=? WHERE room_id=? AND user_id=?",array_merge($v,[$row['room_id'],$row['user_id']]));
+  $v=[(int)$P['can_mic'],(int)$P['can_cam'],(int)$P['can_screen'],(int)$P['can_board'],(int)$P['can_file']];
+  q("UPDATE participants SET can_mic=?,can_cam=?,can_screen=?,can_board=?,can_file=? WHERE id=?",array_merge($v,[$row['id']]));
+  if($row['user_id'])q("UPDATE room_members SET can_mic=?,can_cam=?,can_screen=?,can_board=?,can_file=? WHERE room_id=? AND user_id=?",array_merge($v,[$row['room_id'],$row['user_id']]));
   out(['ok'=>1]);
  case 'leave':
   $p=part();
@@ -403,6 +489,16 @@ try{
   out(['ok'=>1]);
  case 'rec_dl':
   rec_send((int)($_GET['id']??0),!empty($_GET['dl']));
+ case 'file_up':file_take();
+ case 'file_del':
+  $p=part();
+  if(!$p['mgr'])fail(t('err.forbidden'));
+  $r=q("SELECT * FROM room_files WHERE id=? AND room_id=?",[(int)$P['id'],$p['room_id']])->fetch()?:fail(t('err.nofile'));
+  room_file_unlink($r['file']);
+  q("DELETE FROM room_files WHERE id=?",[$r['id']]);
+  out(['ok'=>1]);
+ case 'file_dl':
+  file_send((int)($_GET['id']??0),!empty($_GET['view']));
  case 'attendance_list':
   $rid=(int)$P['room_id'];
   if(!can_manage($rid))fail(t('err.forbidden'));

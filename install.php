@@ -81,7 +81,7 @@ if(!$locked&&($_SERVER['REQUEST_METHOD']??'')==='POST'){
     $cfg=['db_host'=>$host,'db_name'=>$name,'db_user'=>$user,'db_pass'=>$pass,'turn'=>is_array($C['turn']??null)?$C['turn']:[]];
     if(!empty($C['seed'])&&is_array($C['seed']))$cfg['seed']=$C['seed'];
     file_put_contents($root.'/config.local.php',"<?php\n\$C=".var_export($cfg,true).";\n");
-    file_put_contents($root.'/storage/schema.ok','4');
+    file_put_contents($root.'/storage/schema.ok','5');
     file_put_contents($root.'/storage/seed.ok','1');
     file_put_contents($root.'/storage/installed.lock','1');
     @unlink(__DIR__.'/schema.sql');

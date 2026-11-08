@@ -1,6 +1,6 @@
 # Didar
 
-Didar is a meeting app that runs in the browser and is built with PHP. People join a room, talk, turn a camera on, share a screen, draw on the whiteboard, and send chat. A small group connects directly from browser to browser. A larger group sends audio and video through a media server that this project installs on your own Ubuntu machine. There is no outside meeting service. Accounts, rooms, chat, recordings, and settings stay in your database.
+Didar is a meeting app that runs in the browser and is built with PHP. People join a room, talk, turn a camera on, share a screen, draw on the whiteboard, open images, video, and PDFs, and send chat. A small group connects directly from browser to browser. A larger group sends audio and video through a media server that this project installs on your own Ubuntu machine. There is no outside meeting service. Accounts, rooms, chat, recordings, and settings stay in your database.
 
 The web app handles sign-in, languages, the calendar, and a simple view of who is online. Settings can download a full database backup and replace the app with a newer GitHub release.
 
@@ -18,7 +18,7 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 On the server, run this. It downloads the release, then installs:
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.0.5 && tar -xzf didar.tar.gz && cd didar-1.0.5 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
+wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.1.0 && tar -xzf didar.tar.gz && cd didar-1.1.0 && sudo bash ubuntu.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
 ```
 
 Put your own admin username and password in that command. The password must be at least 4 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
@@ -29,6 +29,16 @@ Open `https://meet.example.com/` and sign in. In Settings, choose few people or 
 
 Running the script again clears the Didar database and installs from the start. Other software on the server stays.
 
+## Remove
+
+To remove what this install script put on the server:
+
+```bash
+sudo bash /var/www/didar/didar-uninstall.sh
+```
+
+The script explains the result and waits until you type DELETE. It removes Nginx, MariaDB, PHP, coturn, certbot, ffmpeg, and LiveKit. Other websites, databases, and certificates on that server are deleted too. SSH and the firewall stay.
+
 ## In the app
 
 - Choose a language when you sign in. Change it later in your profile. A new language is a file in `lang/`.
@@ -36,6 +46,8 @@ Running the script again clears the Didar database and installs from the start. 
 - Password strength is in Settings: low, medium, or high.
 - The online count comes from the app. CPU, memory, and bandwidth show up when the server can read them.
 - A room manager can record the meeting. The file is listed on that room and plays from the room card.
+- The Files tab holds images, video, and PDFs. Notes on an image or PDF are live for people in the room and are not saved. People in the room can download the files. The host can delete them, and can allow others to upload.
+- Settings can keep the automatic certificate or take a private key, public key, certificate, and bundle. Saving restarts the web server once. If you return to automatic and that certificate is missing, the manual certificate stays.
 - Settings can download a full database backup.
 - Settings checks the GitHub release. When you confirm, it replaces the app files. The database, `config.local.php`, and uploaded files stay.
 

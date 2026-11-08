@@ -167,19 +167,40 @@ function didar_domain_file(){
  @file_put_contents($f,$m[1]."\n");
  @chmod($f,0644);
 }
+function didar_ssl_hook(){
+ $d='/etc/letsencrypt/renewal-hooks/deploy';
+ if(!is_dir($d)||!is_writable($d)) return;
+ $b=<<<'EOF'
+#!/bin/bash
+set -e
+if [ -f /etc/didar/ssl-mode ] && grep -qx manual /etc/didar/ssl-mode; then
+ exit 0
+fi
+DOM="$(tr -d '\r\n' < /etc/didar/domain)"
+cp "/etc/letsencrypt/live/${DOM}/fullchain.pem" /etc/coturn/certs/fullchain.pem
+cp "/etc/letsencrypt/live/${DOM}/privkey.pem" /etc/coturn/certs/privkey.pem
+chown turnserver:turnserver /etc/coturn/certs/fullchain.pem /etc/coturn/certs/privkey.pem
+chmod 640 /etc/coturn/certs/fullchain.pem /etc/coturn/certs/privkey.pem
+systemctl restart coturn
+EOF;
+ @file_put_contents($d.'/didar.sh',rtrim($b)."\n");
+ @chmod($d.'/didar.sh',0755);
+}
 function didar_sudoers(){
  $root=dirname(__DIR__);
  if(is_dir('/usr/local/sbin')&&is_writable('/usr/local/sbin')){
-  foreach(['didar-update.sh'=>'/usr/local/sbin/didar-update','didar-renew.sh'=>'/usr/local/sbin/didar-renew'] as $src=>$dst){
+  foreach(['didar-update.sh'=>'/usr/local/sbin/didar-update','didar-renew.sh'=>'/usr/local/sbin/didar-renew','didar-ssl.sh'=>'/usr/local/sbin/didar-ssl'] as $src=>$dst){
    if(!is_file($root.'/'.$src)) continue;
    @copy($root.'/'.$src,$dst);
    @chmod($dst,0755);
   }
  }
  didar_domain_file();
+ didar_ssl_hook();
  if(!is_file('/usr/local/sbin/didar-update')||!is_dir('/etc/sudoers.d')||!is_writable('/etc/sudoers.d')) return;
  $line='www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update';
  if(is_file('/usr/local/sbin/didar-renew')) $line.=', /usr/local/sbin/didar-renew';
+ if(is_file('/usr/local/sbin/didar-ssl')) $line.=', /usr/local/sbin/didar-ssl';
  $sf='/etc/sudoers.d/didar';
  $cur=is_file($sf)?trim((string)@file_get_contents($sf)):'';
  if($cur!==$line){
@@ -221,7 +242,7 @@ function nginx_hide(){
  if(!is_string($t)||$t==='')return;
  $n=str_replace(['fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;'],['fastcgi_read_timeout 600s;','fastcgi_read_timeout 600s;'],$t);
  $add='';
- foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /install.php { deny all; }'] as $line){
+ foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /didar-ssl.sh { deny all; }','location = /didar-uninstall.sh { deny all; }','location = /install.php { deny all; }'] as $line){
   if(!str_contains($n,$line))$add.=" ".$line."\n";
  }
  if($add!=='')$n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$n,1);
@@ -476,6 +497,55 @@ function restore_apply($src){
   $code=proc_close($proc);
  }finally{@unlink($cnf);}
  return $code===0;
+}
+function ssl_stage_rm($dir){
+ $dir=rtrim(str_replace('\\','/',(string)$dir),'/');
+ $base=rtrim(str_replace('\\','/',dirname(__DIR__).'/storage/ssl-stage'),'/');
+ if(!preg_match('#^[a-f0-9]{16}$#',basename($dir))) return;
+ if(str_replace('\\','/',dirname($dir))!==$base) return;
+ foreach(['privkey.pem','pubkey.pem','cert.pem','bundle.pem'] as $f) @unlink($dir.'/'.$f);
+ @rmdir($dir);
+}
+function ssl_pem_ok($raw,$marks,$allowEmpty=false){
+ $raw=str_replace(["\r\n","\r"],"\n",(string)$raw);
+ if(strlen($raw)>100000||str_contains($raw,"\0")) return null;
+ if(trim($raw)==='') return $allowEmpty?'':null;
+ if(preg_match('/[^\x09\x0A\x20-\x7E]/',$raw)) return null;
+ foreach($marks as $m) if(str_contains($raw,'BEGIN '.$m)) return $raw;
+ return null;
+}
+function ssl_apply(){
+ @set_time_limit(60);
+ if(!is_executable('/usr/local/sbin/didar-ssl')||!didar_fn('exec')) fail(t('ssl.perm'));
+ $mode=(($_POST['mode']??'')==='manual')?'manual':'auto';
+ $dir='';
+ try{
+  if($mode==='manual'){
+   $priv=ssl_pem_ok($_POST['priv']??'',['PRIVATE KEY','RSA PRIVATE KEY','EC PRIVATE KEY']);
+   $pub=ssl_pem_ok($_POST['pub']??'',['PUBLIC KEY','RSA PUBLIC KEY']);
+   $cert=ssl_pem_ok($_POST['cert']??'',['CERTIFICATE']);
+   $bundle=ssl_pem_ok($_POST['bundle']??'',['CERTIFICATE'],true);
+   if($priv===null||$pub===null||$cert===null||$bundle===null) fail(t('ssl.bad'));
+   $base=dirname(__DIR__).'/storage/ssl-stage';
+   if(!is_dir($base)&&!@mkdir($base,0700,true)) fail(t('ssl.bad'));
+   $dir=$base.'/'.bin2hex(random_bytes(8));
+   if(!@mkdir($dir,0700,true)) fail(t('ssl.bad'));
+   foreach(['privkey.pem'=>$priv,'pubkey.pem'=>$pub,'cert.pem'=>$cert,'bundle.pem'=>$bundle===''?"\n":$bundle] as $fn=>$body){
+    if(file_put_contents($dir.'/'.$fn,$body)===false) fail(t('ssl.bad'));
+    @chmod($dir.'/'.$fn,0600);
+   }
+   $cmd='sudo -n /usr/local/sbin/didar-ssl manual '.escapeshellarg($dir);
+  }else $cmd='sudo -n /usr/local/sbin/didar-ssl auto';
+  $out=[];$code=1;
+  exec($cmd.' 2>&1',$out,$code);
+ }finally{if($dir!=='') ssl_stage_rm($dir);}
+ if($code===2) fail(t('ssl.keep'));
+ if($code!==0){
+  if(function_exists('log_err')) log_err(new RuntimeException('ssl '.substr(implode(' ',$out),0,300)));
+  fail(t('ssl.bad'));
+ }
+ q("REPLACE INTO settings VALUES('ssl_mode',?)",[$mode]);
+ out(['ok'=>1,'mode'=>$mode]);
 }
 function ssl_renew(){
  @set_time_limit(180);

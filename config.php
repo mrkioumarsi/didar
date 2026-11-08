@@ -85,12 +85,13 @@ function ensure_schema(){
  $mark=__DIR__.'/storage/rec-size.ok';
  if(@file_get_contents($mark)!=='1'){try{db()->exec("ALTER TABLE recordings MODIFY size BIGINT UNSIGNED NOT NULL DEFAULT 0");@file_put_contents($mark,'1');}catch(Exception $e){}}
  $f=__DIR__.'/storage/schema.ok';
- if(@file_get_contents($f)==='4'){apply_seed();return;}
- foreach(["participants ADD can_cam TINYINT DEFAULT 0","participants ADD can_board TINYINT DEFAULT 0","participants ADD cam_on TINYINT DEFAULT 0","room_members ADD can_cam TINYINT DEFAULT 0","room_members ADD can_board TINYINT DEFAULT 0","rooms ADD description TEXT NULL","rooms ADD rec_enabled TINYINT DEFAULT 1","chat ADD owner VARCHAR(20) DEFAULT ''","chat ADD deleted_at DATETIME NULL","users ADD bio VARCHAR(300) NOT NULL DEFAULT ''","users ADD avatar VARCHAR(100) NULL","users ADD lang VARCHAR(8) NOT NULL DEFAULT ''","settings MODIFY k VARCHAR(40) NOT NULL"] as $s){try{db()->exec("ALTER TABLE $s");}catch(Exception $e){}}
+ if(@file_get_contents($f)==='5'){apply_seed();return;}
+ foreach(["participants ADD can_cam TINYINT DEFAULT 0","participants ADD can_board TINYINT DEFAULT 0","participants ADD can_file TINYINT DEFAULT 0","participants ADD cam_on TINYINT DEFAULT 0","room_members ADD can_cam TINYINT DEFAULT 0","room_members ADD can_board TINYINT DEFAULT 0","room_members ADD can_file TINYINT DEFAULT 0","rooms ADD description TEXT NULL","rooms ADD rec_enabled TINYINT DEFAULT 1","chat ADD owner VARCHAR(20) DEFAULT ''","chat ADD deleted_at DATETIME NULL","users ADD bio VARCHAR(300) NOT NULL DEFAULT ''","users ADD avatar VARCHAR(100) NULL","users ADD lang VARCHAR(8) NOT NULL DEFAULT ''","settings MODIFY k VARCHAR(40) NOT NULL"] as $s){try{db()->exec("ALTER TABLE $s");}catch(Exception $e){}}
  db()->exec("CREATE TABLE IF NOT EXISTS auth_tokens(id INT AUTO_INCREMENT PRIMARY KEY,selector VARCHAR(24) UNIQUE,hash CHAR(64),user_id INT,expires DATETIME,KEY(user_id)) DEFAULT CHARSET=utf8mb4");
+ db()->exec("CREATE TABLE IF NOT EXISTS room_files(id INT AUTO_INCREMENT PRIMARY KEY,room_id INT,user_id INT NULL,name VARCHAR(120),file VARCHAR(100),mime VARCHAR(80),kind VARCHAR(10),size BIGINT UNSIGNED NOT NULL DEFAULT 0,created DATETIME DEFAULT CURRENT_TIMESTAMP,KEY(room_id,id)) DEFAULT CHARSET=utf8mb4");
  foreach(['timezone'=>'Asia/Tehran','link_mode'=>'p2p','pass_policy'=>'low','default_lang'=>'fa','quality'=>'mid'] as $k=>$v)q("INSERT IGNORE INTO settings(k,v) VALUES(?,?)",[$k,$v]);
  apply_seed();
- @file_put_contents($f,'4');
+ @file_put_contents($f,'5');
 }
 function apply_seed(){
  global $C;
