@@ -71,6 +71,8 @@ async function onSig(s){const d=JSON.parse(s.data),id=s.from_pid;
  if(s.type=='fclear'){const fid=+d.id;fInk[fid]=[];if(fid===+fId)fredraw();return}
  if(s.type=='freq'){const fid=+d.id,arr=fInk[fid]||[];if(fid&&arr.length&&canF())sig(id,'ffull',{id:fid,o:arr});return}
  if(s.type=='ffull'){const fid=+d.id,inc=Array.isArray(d.o)?d.o:[],cur=fInk[fid]||[];if(fid&&inc.length>=cur.length){fInk[fid]=inc;if(fid===+fId)fredraw()}return}
+ if(s.type=='rview'){const v=d.v;if(v==='media'||v==='board'||v==='files'){setView(v);if(v==='files'&&+d.id)openHost(+d.id);else pendFile=0}return}
+ if(s.type=='fopen'){setView('files');openHost(+d.id);return}
  if(S.mode==='sfu')return;
  if(s.type=='offer'){let o=pcs[id];if(!o)o=peer(id,false);const polite=+S.pid<+id;if(o.pc.signalingState!=='stable'){if(!polite)return;try{await o.pc.setLocalDescription({type:'rollback'})}catch(e){}}if(o.pc.signalingState!=='stable')return;await o.pc.setRemoteDescription(d);o.pc.getTransceivers().forEach((tr,i)=>{tr.direction='sendrecv';o.snd[i]=tr.sender});await useLocal(o);await o.pc.setLocalDescription(await o.pc.createAnswer());sig(id,'answer',o.pc.localDescription);o.q.splice(0).forEach(c=>o.pc.addIceCandidate(c).catch(()=>{}))}
  else{const o=pcs[id];if(!o)return;if(s.type=='answer'){await o.pc.setRemoteDescription(d);o.q.forEach(c=>o.pc.addIceCandidate(c));o.q=[]}
@@ -87,7 +89,7 @@ $(document).on('click','[data-fs]',function(){fs($(this).closest('.tile')[0])});
 addEventListener('resize',()=>requestAnimationFrame(()=>{fitBoard();if(view==='files')fitFile()}));
 function setView(v){view=v;$('#vt button').removeClass('act').filter('[data-v='+v+']').addClass('act').removeClass('dot');const hold=!!rec;$('#media').toggleClass('na',v!='media'&&!hold).toggleClass('offstage',v!='media'&&hold);$('#board').toggleClass('na',v!='board'&&!hold).toggleClass('offstage',v!='board'&&hold);$('#files').toggleClass('na',v!='files');$('#stb').toggleClass('bv',v=='board'||v=='files');if(v=='board')requestAnimationFrame(fitBoard);if(v=='files')requestAnimationFrame(fitFile);if(rec&&rec.rc)frame(rec.rc)}
 function fitBoard(){const box=$('#board .cvw')[0],el=$('#cv')[0];if(!box||!el)return;const r=box.getBoundingClientRect();if(r.width<8||r.height<8)return;const k=Math.min(r.width/16,r.height/9);el.style.aspectRatio='auto';el.style.maxWidth='none';el.style.maxHeight='none';el.style.width=Math.max(1,Math.floor(k*16))+'px';el.style.height=Math.max(1,Math.floor(k*9))+'px'}
-$('#vt button').click(function(){setView($(this).data('v'))});
+$('#vt button').click(function(){const v=$(this).data('v');setView(v);if(+S.me.mgr&&(v==='media'||v==='board'||v==='files'))sig(0,'rview',{v:v,id:v==='files'?+fId:0})});
 const PM=[['mic','mic','perm.mic'],['cam','cam','perm.cam'],['screen','screen','perm.screen'],['board','board','perm.board'],['file','sheet','perm.file']];
 function ui(){const mg=+S.me.mgr?1:0,seen={},dnm={};parts.forEach(p=>{seen[p.name]=(seen[p.name]||0)+1;dnm[p.id]=seen[p.name]>1?p.name+' ('+locn(seen[p.name])+')':p.name});$('#cnt').text(locn(parts.length));
  const vis=parts.filter(p=>+p.mgr||+p.can_mic||+p.can_cam||+p.can_screen);
@@ -155,7 +157,7 @@ addEventListener('popstate',()=>{if(!rec)return;try{history.pushState({rec:1},''
 document.addEventListener('visibilitychange',()=>{if(!rec||!rec.rc)return;if(rec.ctx&&rec.ctx.resume)rec.ctx.resume();$('#scrs video,#tiles video').each(function(){if(this.paused&&this.play)this.play().catch(function(){})});frame(rec.rc)});
 addEventListener('pagehide',()=>{if(rec||!S.pid||!navigator.sendBeacon)return;const f=new FormData();f.append('pid',S.pid);if(window.CSRF)f.append('csrf',window.CSRF);navigator.sendBeacon('api.php?action=leave',f)});
 const cv=$('#cv')[0],cx=cv.getContext('2d');let objs=[],gotFull=0,tool='pen',col='#111827',sz=6,cur=null,seq=0;
-let files=[],fInk={},fHash='',fRender='',fReady=0,fId=0,curFile=null,fTool='pen',fCol='#111827',fSz=6,fCur=null;
+let files=[],fInk={},fHash='',fRender='',fReady=0,fId=0,pendFile=0,curFile=null,fTool='pen',fCol='#111827',fSz=6,fCur=null;
 const canB=()=>+S.me.mgr||+S.me.can_board,canF=()=>+S.me.mgr||+S.me.can_file||+S.me.can_board,SHAPE=['line','arrow','rect','ell'];
 function drawAt(g,w,h,o){g.save();g.lineCap=g.lineJoin='round';g.strokeStyle=g.fillStyle=o.c;g.lineWidth=o.w;
  if(o.t=='hl'){g.globalAlpha=.35;g.lineWidth=o.w*4}if(o.t=='er'){g.globalCompositeOperation='destination-out';g.lineWidth=o.w*4}
@@ -196,12 +198,14 @@ function showFile(id){const f=files.find(x=>+x.id===+id);if(!f){stopF();renderFi
  else if(f.kind==='pdf'){$('#fpdf').removeClass('na').attr('src',src);$('#fcv').removeClass('na');requestAnimationFrame(()=>requestAnimationFrame(fitFile))}
  else{$('#fvid').removeClass('na').prop('src',src);requestAnimationFrame(fitFile)}
  if(f.kind==='image'||f.kind==='pdf')sig(0,'freq',{id:fId});renderFiles()}
-function syncFiles(list){list=Array.isArray(list)?list:[];const h=list.map(x=>[x.id,x.size,x.name].join(':')).join('|');const boot=!fReady;fReady=1;if(h===fHash){if(boot)renderFiles();return}fHash=h;files=list;if(fId&&!list.some(x=>+x.id===+fId))stopF();fRender='';renderFiles();if(!boot&&view!=='files')$('#vt [data-v=files]').addClass('dot')}
-function renderFiles(){const mg=+S.me.mgr?1:0,up=!!(mg||+S.me.can_file);$('#fup').toggleClass('na',!up);$('#fdl').toggleClass('na',!fId);$('#fdel').toggleClass('na',!(mg&&fId));fPass();const mark=fHash+'|'+fId+'|'+up+'|'+mg+'|'+(curFile?curFile.kind:'');if(mark===fRender)return;fRender=mark;
+function openHost(id){id=+id;if(!id)return;if(files.some(x=>+x.id===id)){pendFile=0;showFile(id)}else pendFile=id}
+function syncFiles(list){list=Array.isArray(list)?list:[];const h=list.map(x=>[x.id,x.size,x.name].join(':')).join('|');const boot=!fReady;fReady=1;if(h!==fHash){fHash=h;files=list;if(fId&&!list.some(x=>+x.id===+fId)){if(+pendFile===+fId)pendFile=0;stopF()}fRender='';renderFiles();if(!boot&&view!=='files')$('#vt [data-v=files]').addClass('dot')}else if(boot)renderFiles();if(pendFile&&files.some(x=>+x.id===pendFile)){const id=pendFile;pendFile=0;showFile(id)}}
+function renderFiles(){const mg=+S.me.mgr?1:0,up=!!(mg||+S.me.can_file);$('#fdl').toggleClass('na',!fId);$('#fdel').toggleClass('na',!(mg&&fId));fPass();const mark=fHash+'|'+fId+'|'+up+'|'+mg+'|'+(curFile?curFile.kind:'');if(mark===fRender)return;fRender=mark;
  const kind=k=>k==='video'?'video':k==='pdf'?'sheet':'pic';
- $('#flist').html(files.length?files.map(f=>`<button type="button" class="fitem${+f.id===+fId?' on':''}" data-id="${+f.id}">${ic(kind(f.kind),16)}<span class="gx"><b>${esc(f.name)}</b><small>${esc(fmtB(f.size))}</small></span></button>`).join(''):`<div class="fpad mu">${esc(t('room.files.empty'))}</div>`)}
-$('#flist').on('click','.fitem',function(){showFile(+$(this).data('id'))});
-$('#fup').click(()=>{if(!(+S.me.mgr||+S.me.can_file))return toast(t('err.nofileperm'));$('#finput').click()});
+ const upBtn=up?`<button type="button" class="fitem fup">${ic('plus',16)}<span class="gx"><b>${esc(t('room.files.up'))}</b></span></button>`:'';
+ const rows=files.map(f=>`<button type="button" class="fitem${+f.id===+fId?' on':''}" data-id="${+f.id}">${ic(kind(f.kind),16)}<span class="gx"><b>${esc(f.name)}</b><small>${esc(fmtB(f.size))}</small></span></button>`).join('');
+ $('#flist').html(upBtn+rows+(files.length?'':`<div class="fpad mu">${esc(t('room.files.empty'))}</div>`))}
+$('#flist').on('click','.fitem',function(){if($(this).hasClass('fup')){if(!(+S.me.mgr||+S.me.can_file))return toast(t('err.nofileperm'));$('#finput').click();return}const id=+$(this).data('id');showFile(id);if(+S.me.mgr&&id)sig(0,'fopen',{id})});
 $('#finput').on('change',function(){const f=this.files&&this.files[0];this.value='';if(!f)return;if(!(+S.me.mgr||+S.me.can_file))return toast(t('err.nofileperm'));const fd=new FormData();fd.append('pid',S.pid);fd.append('f',f);if(window.CSRF)fd.append('csrf',window.CSRF);$.ajax({url:'api.php?action=file_up',method:'POST',data:fd,processData:false,contentType:false,dataType:'json'}).done(()=>toast(t('room.files.upok'))).fail(x=>toast((x.responseJSON||{}).error||t('err.net')))});
 $('#fdl').click(()=>{if(!fId)return;const a=document.createElement('a');a.href='api.php?action=file_dl&id='+encodeURIComponent(fId);document.body.appendChild(a);a.click();a.remove()});
 $('#fdel').click(()=>{if(!+S.me.mgr||!fId)return;if(!confirm(t('confirm.file')))return;const id=fId;api('file_del',{id}).done(()=>{files=files.filter(x=>+x.id!==+id);if(+fId===+id)stopF();fHash='';fRender='';syncFiles(files)})});
