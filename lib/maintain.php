@@ -260,6 +260,10 @@ function didar_yaml_rtc($n,$key,$val){
  if(preg_match('/^  '.preg_quote($key,'/').':[^\n]*/m',$n)) return preg_replace('/^  '.preg_quote($key,'/').':[^\n]*/m',$line,$n,1);
  return preg_replace('/^(rtc:\s*\n)/m','$1'.$line."\n",$n,1);
 }
+function didar_yaml_drop_rtc_list($n,$key){
+ $x=preg_replace('/^  '.preg_quote($key,'/').':[ \t]*\n(?:[ \t]{4,}.*\n)*/m','',$n);
+ return is_string($x)?$x:$n;
+}
 function didar_fix_livekit(){
  if(PHP_SAPI!=='cli') return;
  if(function_exists('posix_geteuid')&&posix_geteuid()!==0) return;
@@ -268,15 +272,17 @@ function didar_fix_livekit(){
  $t=(string)@file_get_contents($f);
  if($t==='') return;
  $n=str_replace(['  - "127.0.0.1"','  - \'127.0.0.1\''],['  - "0.0.0.0"','  - "0.0.0.0"'],$t);
+ $n=didar_yaml_drop_rtc_list($n,'stun_servers');
+ $n=didar_yaml_drop_rtc_list($n,'turn_servers');
  $ip=didar_pub_ip();
  if($ip!==''){
   $n=didar_yaml_rtc($n,'use_external_ip','false');
   $n=didar_yaml_rtc($n,'node_ip','"'.$ip.'"');
  }else{
   $n=didar_yaml_rtc($n,'use_external_ip','true');
+  $n=didar_yaml_rtc($n,'skip_external_ip_validation','true');
  }
- $n=didar_yaml_rtc($n,'advertise_internal_ip','true');
- $n=didar_yaml_rtc($n,'skip_external_ip_validation','true');
+ $n=didar_yaml_rtc($n,'advertise_internal_ip','false');
  $n=didar_yaml_rtc($n,'use_ice_lite','false');
  if(!is_string($n)||$n===$t) return;
  @file_put_contents($f,$n);

@@ -167,6 +167,8 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
+echo "Didar 1.1.0 installer 20261113-sfu"
+
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
 . /etc/os-release
@@ -424,6 +426,7 @@ EXTLINE=""
 RELAYLINE=""
 LK_NODE=""
 LK_EXT="false"
+LK_SKIP=""
 
 if ok_pub "$PUB" && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then
     EXT="${PUB}/${PRIV}"
@@ -444,15 +447,16 @@ if ok_pub "$PUB"; then
     install -d -m 700 /etc/didar
     printf '%s\n' "$PUB" > /etc/didar/pubip
     chmod 644 /etc/didar/pubip
-elif [ -n "$PRIV" ] && ! ok_pub "$PRIV"; then
-    echo "WARNING: public IP unknown; LiveKit will not STUN-discover through NAT."
 else
     LK_EXT="true"
+    LK_SKIP="  skip_external_ip_validation: true"
+    echo "WARNING: public IP unknown; LiveKit will STUN-discover."
 fi
 
 echo "Public IP: ${PUB:-unknown}"
 echo "Private IP: ${PRIV:-unknown}"
 echo "LiveKit use_external_ip: ${LK_EXT}"
+echo "LiveKit node_ip: ${PUB:-none}"
 
 step "6. Configuring UFW"
 
@@ -671,26 +675,10 @@ rtc:
   port_range_start: 50000
   port_range_end: 60000
   use_external_ip: ${LK_EXT}
-  advertise_internal_ip: true
-  skip_external_ip_validation: true
+  advertise_internal_ip: false
   use_ice_lite: false
+${LK_SKIP}
 ${LK_NODE}
-  stun_servers:
-    - stun.l.google.com:19302
-    - "${DOMAIN}:3478"
-  turn_servers:
-    - host: ${DOMAIN}
-      port: 3478
-      protocol: udp
-      secret: "${TURNSEC}"
-    - host: ${DOMAIN}
-      port: 3478
-      protocol: tcp
-      secret: "${TURNSEC}"
-    - host: ${DOMAIN}
-      port: 5349
-      protocol: tls
-      secret: "${TURNSEC}"
 
 turn:
   enabled: false

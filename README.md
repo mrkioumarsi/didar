@@ -19,13 +19,13 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 On Ubuntu as root, download the release, then run `didar-install.sh`. `--confirm-wipe` is required when there is no prompt. It erases every MariaDB database on this machine. Existing Nginx sites stay. The admin password must be at least 8 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.1.0
+wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
 cd didar-1.1.0
 sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-Replace the domain, email, username, and password. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
+Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-sfu`. If that line is missing, the download is an old copy; delete `didar.tar.gz` and `didar-1.1.0` and run wget again. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
 
 Open `https://meet.example.com/` and sign in. In Settings, choose few people or many people. The addresses are already filled in.
 

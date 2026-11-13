@@ -19,13 +19,13 @@
 روی اوبونتو با root، اول رلیز را دانلود کنید، بعد `didar-install.sh` را اجرا کنید. وقتی پرامپت نیست `--confirm-wipe` لازم است. این فلگ تمام پایگاه‌داده‌های MariaDB روی همین ماشین را پاک می‌کند. سایت‌های موجود Nginx می‌مانند. رمز مدیر حداقل ۸ نویسه است. اگر `--admin-pass` را ننویسید، اسکریپت یک رمز می‌سازد و فقط یک بار در پایان چاپ می‌کند.
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.1.0
+wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
 cd didar-1.1.0
 sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-دامنه، ایمیل، نام کاربری و رمز را عوض کنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد.
+دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-sfu` باشد. اگر این خط نیست، دانلود قدیمی است؛ `didar.tar.gz` و پوشه `didar-1.1.0` را پاک کنید و wget را دوباره بزنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد.
 
 سپس `https://meet.example.com/` را باز کنید و وارد شوید. در تنظیمات تعداد کم یا تعداد زیاد را انتخاب کنید. آدرس‌ها از قبل پر شده است.
 
