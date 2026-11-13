@@ -3,10 +3,15 @@ set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then echo "root"; exit 1; fi
 umask 077
 MODE="${1:-}"
-SITE=/etc/nginx/sites-available/didar
+SITE=""
+if [ -f /etc/nginx/conf.d/didar.conf ]; then
+ SITE=/etc/nginx/conf.d/didar.conf
+elif [ -f /etc/nginx/sites-available/didar ]; then
+ SITE=/etc/nginx/sites-available/didar
+fi
 AUTO=/etc/didar/ssl-auto.conf
 MODEFILE=/etc/didar/ssl-mode
-if [ ! -f "$SITE" ]; then echo "site"; exit 1; fi
+if [ -z "$SITE" ] || [ ! -f "$SITE" ]; then echo "site"; exit 1; fi
 
 write_hook(){
  local d=/etc/letsencrypt/renewal-hooks/deploy

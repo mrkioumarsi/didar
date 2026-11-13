@@ -157,15 +157,25 @@ function didar_fix_tree($root){
  if(is_file($root.'/config.local.php')) exec('chown root:www-data '.escapeshellarg($root.'/config.local.php').' && chmod 640 '.escapeshellarg($root.'/config.local.php'));
  foreach([$root.'/assets/icon-192.png',$root.'/assets/icon-512.png'] as $ic) if(is_file($ic)) exec('chown www-data:www-data '.escapeshellarg($ic).' && chmod 664 '.escapeshellarg($ic));
 }
+function didar_nginx_files(){
+ $a=[];
+ foreach(['/etc/nginx/conf.d/didar.conf','/etc/nginx/sites-available/didar'] as $f){
+  if(is_file($f))$a[]=$f;
+ }
+ return $a;
+}
 function didar_domain_file(){
  $f='/etc/didar/domain';
  if(is_file($f)&&preg_match('/^[A-Za-z0-9.-]{1,253}$/',trim((string)@file_get_contents($f)))) return;
  if(!is_dir('/etc/didar')||!is_writable('/etc/didar')) return;
- $ng=@file_get_contents('/etc/nginx/sites-available/didar');
- if(!is_string($ng)||!preg_match('/server_name\s+([A-Za-z0-9.-]{1,253})\s*;/',$ng,$m)) return;
- if($m[1]==='_'||$m[1]==='localhost') return;
- @file_put_contents($f,$m[1]."\n");
- @chmod($f,0644);
+ foreach(didar_nginx_files() as $ngf){
+  $ng=@file_get_contents($ngf);
+  if(!is_string($ng)||!preg_match('/server_name\s+([A-Za-z0-9.-]{1,253})\s*;/',$ng,$m)) continue;
+  if($m[1]==='_'||$m[1]==='localhost') continue;
+  @file_put_contents($f,$m[1]."\n");
+  @chmod($f,0644);
+  return;
+ }
 }
 function didar_ssl_hook(){
  $d='/etc/letsencrypt/renewal-hooks/deploy';
@@ -189,7 +199,7 @@ EOF;
 function didar_sudoers(){
  $root=dirname(__DIR__);
  if(is_dir('/usr/local/sbin')&&is_writable('/usr/local/sbin')){
-  foreach(['didar-update.sh'=>'/usr/local/sbin/didar-update','didar-renew.sh'=>'/usr/local/sbin/didar-renew','didar-ssl.sh'=>'/usr/local/sbin/didar-ssl'] as $src=>$dst){
+  foreach(['didar-update.sh'=>'/usr/local/sbin/didar-update','didar-reinstall.sh'=>'/usr/local/sbin/didar-reinstall','didar-uninstall.sh'=>'/usr/local/sbin/didar-uninstall','didar-renew.sh'=>'/usr/local/sbin/didar-renew','didar-ssl.sh'=>'/usr/local/sbin/didar-ssl'] as $src=>$dst){
    if(!is_file($root.'/'.$src)) continue;
    @copy($root.'/'.$src,$dst);
    @chmod($dst,0755);
@@ -236,18 +246,25 @@ function nginx_hide(){
   $txt=(string)@file_get_contents($ini);
   if($txt!==''&&!str_contains($txt,'expose_php'))@file_put_contents($ini,rtrim($txt)."\nexpose_php=Off\n");
  }
- $f='/etc/nginx/sites-available/didar';
- if(!is_file($f)||!is_writable($f))return;
- $t=@file_get_contents($f);
- if(!is_string($t)||$t==='')return;
- $n=str_replace(['fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;'],['fastcgi_read_timeout 600s;','fastcgi_read_timeout 600s;'],$t);
- $add='';
- foreach(['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /didar-ssl.sh { deny all; }','location = /didar-uninstall.sh { deny all; }','location = /install.php { deny all; }'] as $line){
-  if(!str_contains($n,$line))$add.=" ".$line."\n";
+ $files=didar_nginx_files();
+ if(!$files)return;
+ $deny=['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-install.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-reinstall.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /didar-ssl.sh { deny all; }','location = /didar-uninstall.sh { deny all; }','location = /install.php { deny all; }'];
+ $changed=false;
+ foreach($files as $f){
+  if(!is_writable($f))continue;
+  $t=@file_get_contents($f);
+  if(!is_string($t)||$t==='')continue;
+  $n=str_replace(['fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;'],['fastcgi_read_timeout 600s;','fastcgi_read_timeout 600s;'],$t);
+  $add='';
+  foreach($deny as $line){
+   if(!str_contains($n,$line))$add.=" ".$line."\n";
+  }
+  if($add!=='')$n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$n,1);
+  if(!is_string($n)||$n===$t)continue;
+  @file_put_contents($f,$n);
+  $changed=true;
  }
- if($add!=='')$n=preg_replace('/\n}\s*$/',"\n".$add."}\n",$n,1);
- if(!is_string($n)||$n===$t)return;
- @file_put_contents($f,$n);
+ if(!$changed)return;
  if(getenv('DIDAR_UPDATE')==='1')return;
  if(didar_fn('exec'))exec('bash -c '.escapeshellarg('sleep 2; systemctl reload php'.$ver.'-fpm >/dev/null 2>&1 || true; nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true').' >/dev/null 2>&1 &');
 }
