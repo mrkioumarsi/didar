@@ -10,6 +10,7 @@ ADMIN_USER="admin"
 ADMIN_PASS=""
 ADMIN_NAME="Admin"
 CONFIRM_WIPE=0
+MEDIA_MODE="unknown"
 
 mkdir -p /var/log
 touch "$LOG"
@@ -167,7 +168,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-sfu"
+echo "Didar 1.1.0 installer 20261113-db"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
@@ -427,11 +428,14 @@ RELAYLINE=""
 LK_NODE=""
 LK_EXT="false"
 LK_SKIP=""
+MEDIA_MODE="unknown"
 
 if ok_pub "$PUB" && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then
     EXT="${PUB}/${PRIV}"
+    MEDIA_MODE="nat"
 elif ok_pub "$PUB"; then
     EXT="$PUB"
+    MEDIA_MODE="direct"
 fi
 
 if [ -n "$EXT" ]; then
@@ -455,6 +459,7 @@ fi
 
 echo "Public IP: ${PUB:-unknown}"
 echo "Private IP: ${PRIV:-unknown}"
+echo "Media mode: ${MEDIA_MODE}"
 echo "LiveKit use_external_ip: ${LK_EXT}"
 echo "LiveKit node_ip: ${PUB:-none}"
 
@@ -1007,12 +1012,13 @@ install -m 755 "$APPDIR/didar-ssl.sh" /usr/local/sbin/didar-ssl
 
 echo "$APPDIR" > /etc/didar/appdir
 echo "$DOMAIN" > /etc/didar/domain
+printf '%s\n' "$MEDIA_MODE" > /etc/didar/media-mode
 if [ -n "$PUB" ]; then
     echo "$PUB" > /etc/didar/pubip
     chmod 644 /etc/didar/pubip
 fi
 
-chmod 644 /etc/didar/appdir /etc/didar/domain
+chmod 644 /etc/didar/appdir /etc/didar/domain /etc/didar/media-mode
 
 cat > /etc/sudoers.d/didar <<'EOF'
 www-data ALL=(root) NOPASSWD: /usr/local/sbin/didar-update, /usr/local/sbin/didar-renew, /usr/local/sbin/didar-ssl
@@ -1304,6 +1310,11 @@ fi
 echo
 echo "SUCCESS: Didar is installed."
 echo "URL: https://${DOMAIN}/"
+echo "Media mode: ${MEDIA_MODE}"
+echo "Database host: localhost"
+echo "Database name: didar"
+echo "Database user: didar"
+echo "Database password: ${DBPASS}"
 echo "Admin username: ${ADMIN_USER}"
 echo "Admin password: ${ADMIN_PASS}"
 
