@@ -233,16 +233,6 @@ function didar_local_ip(){
  if(preg_match('/\bsrc\s+([0-9.]+)/',implode(' ',$o),$m)) return $m[1];
  return '';
 }
-function didar_route_dev(){
- if(!didar_fn('exec')) return '';
- $o=[];$c=1;
- exec('ip -4 route get 1.1.1.1 2>/dev/null',$o,$c);
- if(preg_match('/\bdev\s+(\S+)/',implode(' ',$o),$m)) return $m[1];
- return '';
-}
-function didar_on_tunnel(){
- return (bool)preg_match('/^(sing-box|tun|tap|wg|tailscale|docker|warp)/',didar_route_dev());
-}
 function didar_public_ip($ip){
  if(!filter_var($ip,FILTER_VALIDATE_IP,FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE)) return false;
  $p=explode('.',$ip);
@@ -319,10 +309,6 @@ function didar_fix_coturn($ext,$relay){
 function didar_fix_livekit(){
  if(PHP_SAPI!=='cli') return;
  if(function_exists('posix_geteuid')&&posix_geteuid()!==0) return;
- if(didar_on_tunnel()){
-  fwrite(STDERR,"VPN is the default route. Run vpn-stop.\n");
-  return;
- }
  $f='/etc/livekit.yaml';
  if(!is_file($f)||!is_writable($f)) return;
  $t=(string)@file_get_contents($f);

@@ -15,14 +15,13 @@ NET=""
 PUBLIC_IP=""
 ICE_RELAY=0
 LK_IPFLAG=""
-DIDAR_VPN_STARTED=0
 
 mkdir -p /var/log
 touch "$LOG"
 chmod 600 "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 
-trap 'rc=$?; stop_install_vpn; echo; echo "ERROR: Installation failed at line ${LINENO}, exit code ${rc}."; echo "Log: '"$LOG"'"; exit "$rc"' ERR
+trap 'rc=$?; echo; echo "ERROR: Installation failed at line ${LINENO}, exit code ${rc}."; echo "Log: '"$LOG"'"; exit "$rc"' ERR
 
 step() {
     echo
@@ -31,34 +30,9 @@ step() {
     echo "============================================================"
 }
 
-stop_install_vpn() {
-    if [ "${DIDAR_VPN_STARTED:-0}" != 1 ]; then
-        return 0
-    fi
-    DIDAR_VPN_STARTED=0
-    if command -v vpn-stop >/dev/null 2>&1; then
-        vpn-stop || true
-    fi
-}
-
 fail() {
-    stop_install_vpn
     echo "ERROR: $1"
     exit 1
-}
-
-route_dev() {
-    ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}' || true
-}
-
-refuse_tunnel() {
-    local d
-    d="$(route_dev | tr -d '\r\n[:space:]')"
-    case "$d" in
-        sing-box*|tun*|tap*|wg*|tailscale*|docker*|warp*)
-            fail "Stop the VPN first (vpn-stop). The installer starts it only for the certificate, then stops it."
-            ;;
-    esac
 }
 
 prefer_ipv4() {
@@ -191,7 +165,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-net"
+echo "Didar 1.1.0 installer 20261113-modes"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
@@ -271,8 +245,6 @@ if ! command -v mariadbd >/dev/null 2>&1 && ! command -v mysqld >/dev/null 2>&1;
 fi
 
 PHPVER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
-
-refuse_tunnel
 
 step "2. Preparing fresh MariaDB installation"
 
@@ -430,8 +402,6 @@ systemctl restart mariadb
 dbroot -Nse "SELECT 1" >/dev/null || fail "MariaDB failed after configuration"
 
 step "5. Checking DNS and public IP"
-
-refuse_tunnel
 
 PRIV="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)"
 PRIV="$(printf '%s' "$PRIV" | tr -d '\r\n[:space:]')"
@@ -1153,16 +1123,8 @@ chmod 644 /etc/didar/email
 prefer_ipv4
 write_acme_py
 echo "Checking Let's Encrypt API..."
-if ! curl -4 -fsS -m 25 -o /dev/null "https://acme-v02.api.letsencrypt.org/directory"; then
-    echo "Let's Encrypt API is slow or unreachable on IPv4."
-    if command -v vpn-start >/dev/null 2>&1; then
-        echo "Starting VPN for the certificate only..."
-        if vpn-start; then
-            DIDAR_VPN_STARTED=1
-        else
-            echo "vpn-start failed."
-        fi
-    fi
+if ! curl -4 -fsS -m 90 -o /dev/null "https://acme-v02.api.letsencrypt.org/directory"; then
+    echo "Let's Encrypt API is slow or unreachable on IPv4. certbot will retry."
 fi
 if ! run_certbot certonly \
     --webroot \
@@ -1172,11 +1134,8 @@ if ! run_certbot certonly \
     --agree-tos \
     --non-interactive \
     --keep-until-expiring; then
-    stop_install_vpn
-    fail "Let's Encrypt timed out on acme-v02.api.letsencrypt.org:443. Run vpn-start, re-run the installer, then run vpn-stop."
+    fail "Let's Encrypt timed out on acme-v02.api.letsencrypt.org:443. Open outbound HTTPS to Let's Encrypt, wait, then re-run the installer."
 fi
-stop_install_vpn
-refuse_tunnel
 
 [ -s "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] || fail "SSL certificate was not created"
 [ -s "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ] || fail "SSL private key was not created"

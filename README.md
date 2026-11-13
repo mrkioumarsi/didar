@@ -32,28 +32,28 @@ Didar is a meeting app that runs in the browser and is written in PHP. People jo
 
 Pick one mode. The installer does not guess.
 
-`--net nat` is the home or office server. The network card has a private address such as `192.168.x.x`, and the router forwards the ports above to that address. LiveKit announces the public IP. Coturn is set to `external-ip=PUBLIC/PRIVATE` and `relay-ip` on the private card. The public IP is the domain A record. If that record is not in place yet, pass `--public-ip`.
-
 `--net direct` is a server whose own network card already has the public IP. LiveKit and Coturn both use that address. If the card is private, this mode stops and tells you to use `--net nat`.
 
-Stop any VPN before you install, update, or reinstall (`vpn-stop`). A tunnel as the default route is refused, so the media address cannot become the VPN address. If Let's Encrypt cannot be reached, the installer runs `vpn-start` only while it requests the certificate, then runs `vpn-stop`. Leave the VPN stopped while a meeting is open. Test audio and video from mobile data. A phone on the same Wi-Fi as the server often cannot open the public name.
+`--net nat` is a server whose network card has a private address such as `192.168.x.x`. The router forwards the ports above to that address. LiveKit announces the public IP. Coturn is set to `external-ip=PUBLIC/PRIVATE` and `relay-ip` on the private card. The public IP is the domain A record. If that record is not in place yet, pass `--public-ip`.
+
+Test audio and video from mobile data. A phone on the same Wi-Fi as the server often cannot open the public name.
 
 ## Install
 
 Run this on Ubuntu as root. `--confirm-wipe` is required when there is no prompt. It erases every MariaDB database on this machine. Other Nginx sites stay. The firewall only gains rules. It is not reset. The admin password must be at least 8 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
 
-Behind NAT:
+When the network card is the public IP:
 
 ```bash
 wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
 cd didar-1.1.0
-sudo bash didar-install.sh --net nat --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
+sudo bash didar-install.sh --net direct --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-On a public network card, use the same commands with `--net direct` instead of `--net nat`.
+Behind NAT, the card is private and the router forwards the ports. Use the same commands with `--net nat` instead of `--net direct`. Add `--public-ip` when the domain A record is not ready yet.
 
-Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-net`. If that line is missing, the download is an old copy. Delete `didar.tar.gz` and `didar-1.1.0`, then run wget again.
+Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-modes`. If that line is missing, the download is an old copy. Delete `didar.tar.gz` and `didar-1.1.0`, then run wget again.
 
 Optional flags: `--public-ip` (nat only), `--admin-name`, and `--dir` when the app is not next to the script. Without `--confirm-wipe`, the script waits until you type `WIPE-DATABASES`.
 
@@ -67,7 +67,7 @@ Open `https://meet.example.com/` and sign in. In Settings, choose a small group 
 
 Use this when GitHub has a newer release. The database, `config.local.php`, rooms, recordings, and uploaded files stay. The app files are replaced.
 
-From Settings, check GitHub, then confirm Update. On the server, with the VPN stopped:
+From Settings, check GitHub, then confirm Update. On the server:
 
 ```bash
 sudo didar-update
@@ -81,7 +81,7 @@ sudo bash /var/www/didar/didar-update.sh
 
 ## Reinstall this version
 
-Use this when the server is already on 1.1.0 and you need the current files of that same release again. It downloads the tag once more. The database, `config.local.php`, and uploads stay. Stop the VPN first. From Settings, use «Reinstall this release», or:
+Use this when the server is already on 1.1.0 and you need the current files of that same release again. It downloads the tag once more. The database, `config.local.php`, and uploads stay. From Settings, use «Reinstall this release», or:
 
 ```bash
 sudo didar-reinstall
@@ -95,7 +95,7 @@ A failed first install is not repaired by reinstall. Download the release again 
 
 ## Certificate
 
-The installer asks Let's Encrypt for a certificate in the last step. If that service cannot be reached on IPv4, and `vpn-start` exists, the installer starts the VPN for that step only and stops it afterwards. If it still fails, run `vpn-start`, run the installer again, then run `vpn-stop`.
+The installer asks Let's Encrypt for a certificate in the last step. If that times out, wait and run the installer again. Outbound HTTPS to Let's Encrypt must be open.
 
 Later, Settings can keep the automatic certificate or take a private key, public key, certificate, and bundle. Saving restarts the web server once. If you return to automatic and that certificate is missing, the manual certificate stays. Renewal copies the automatic certificate to Coturn. `didar-renew` and `didar-ssl` are installed for that work.
 
@@ -124,11 +124,11 @@ sudo bash /var/www/didar/didar-uninstall.sh --hard
 
 ## If audio or video fails
 
-LiveKit is pinned to a real address, with `use_external_ip` off. It does not discover an address through STUN, and it does not use the VPN address. In nat mode, Coturn advertises the public IP and relays from the private card. In direct mode, both sides of Coturn are the public card.
+LiveKit is pinned to a real address, with `use_external_ip` off. It does not discover an address through STUN. In direct mode, both sides of Coturn are the public card. In nat mode, Coturn advertises the public IP and relays from the private card.
 
 The browser uses the STUN and TURN addresses stored in Settings (port 3478, and 5349 for TLS). «Force TURN» stays off unless you turn it on in Settings. Turn it on only when direct media is unstable and TURN is already filled in.
 
-Check that the router forwards the ports listed above, that `/etc/didar/pubip` is the real public IP, and that `vpn-stop` has been run. Then test from mobile data.
+In nat mode, check that the router forwards the ports listed above and that `/etc/didar/pubip` is the real public IP. Then test from mobile data.
 
 ## In the app
 

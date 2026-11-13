@@ -13,13 +13,6 @@ if ! printf '%s' "$APPDIR" | grep -Eq '^/[A-Za-z0-9._/-]+$'; then echo "Applicat
 if [ ! -f "$APPDIR/config.php" ]; then echo "Application folder was not found"; exit 1; fi
 export DIDAR_APP="$APPDIR"
 export DIDAR_UPDATE=1
-DEV="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}' || true)"
-case "$DEV" in
- sing-box*|tun*|tap*|wg*|tailscale*|docker*|warp*)
-  echo "Stop the VPN first (vpn-stop). Media must not use the VPN address."
-  exit 1
-  ;;
-esac
 if [ -f /etc/livekit.yaml ]; then
  if grep -q '127.0.0.1' /etc/livekit.yaml; then
   sed -i 's/^  - "127.0.0.1"/  - "0.0.0.0"/' /etc/livekit.yaml
