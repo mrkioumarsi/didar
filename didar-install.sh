@@ -438,8 +438,10 @@ server {
     listen 80;
     server_name ${DOMAIN};
 
-    location /.well-known/acme-challenge/ {
+    location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
+        default_type text/plain;
+        allow all;
     }
 
     location / {
@@ -933,8 +935,10 @@ server {
     listen 80;
     server_name ${DOMAIN};
 
-    location /.well-known/acme-challenge/ {
+    location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
+        default_type text/plain;
+        allow all;
     }
 
     root ${APPDIR};
@@ -1011,6 +1015,9 @@ systemctl is-active --quiet livekit || fail "LiveKit is not active"
 step "20. Final stage: SSL, HTTPS and Coturn certificates"
 
 # Obtain or renew the certificate while the HTTP ACME challenge is reachable.
+install -d -m 755 /var/www/certbot
+chmod 755 /var/www/certbot
+umask 022
 certbot certonly \
     --webroot \
     -w /var/www/certbot \
@@ -1019,6 +1026,7 @@ certbot certonly \
     --agree-tos \
     --non-interactive \
     --keep-until-expiring
+umask 077
 
 [ -s "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] || fail "SSL certificate was not created"
 [ -s "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ] || fail "SSL private key was not created"
@@ -1035,8 +1043,10 @@ server {
     listen 80;
     server_name ${DOMAIN};
 
-    location /.well-known/acme-challenge/ {
+    location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
+        default_type text/plain;
+        allow all;
     }
 
     location / {
