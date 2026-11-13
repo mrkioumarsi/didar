@@ -45,15 +45,15 @@ Run this on Ubuntu as root. `--confirm-wipe` is required when there is no prompt
 When the network card is the public IP:
 
 ```bash
-wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
+wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.1.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
-cd didar-1.1.0
+cd didar-1.1.1
 sudo bash didar-install.sh --net direct --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
 Behind NAT, the card is private and the router forwards the ports. Use the same commands with `--net nat` instead of `--net direct`. Add `--public-ip` when the domain A record is not ready yet.
 
-Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-modes`. If that line is missing, the download is an old copy. Delete `didar.tar.gz` and `didar-1.1.0`, then run wget again.
+Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.1 installer 20261113-pdf`. If that line is missing, the download is an old copy. Delete `didar.tar.gz` and `didar-1.1.1`, then run wget again.
 
 Optional flags: `--public-ip` (nat only), `--admin-name`, and `--dir` when the app is not next to the script. Without `--confirm-wipe`, the script waits until you type `WIPE-DATABASES`.
 
@@ -81,7 +81,7 @@ sudo bash /var/www/didar/didar-update.sh
 
 ## Reinstall this version
 
-Use this when the server is already on 1.1.0 and you need the current files of that same release again. It downloads the tag once more. The database, `config.local.php`, and uploads stay. From Settings, use «Reinstall this release», or:
+Use this when the server is already on this version and you need the current files of that same release again. It downloads the tag once more. The database, `config.local.php`, and uploads stay. From Settings, use «Reinstall this release», or:
 
 ```bash
 sudo didar-reinstall

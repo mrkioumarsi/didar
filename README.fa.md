@@ -45,15 +45,15 @@
 وقتی کارت شبکه همان IP عمومی است:
 
 ```bash
-wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
+wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.1.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
-cd didar-1.1.0
+cd didar-1.1.1
 sudo bash didar-install.sh --net direct --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
 پشت NAT کارت خصوصی است و روتر پورت‌ها را فوروارد می‌کند. همان دستورها را با `--net nat` به‌جای `--net direct` بزنید. اگر رکورد A هنوز آماده نیست، `--public-ip` را هم اضافه کنید.
 
-دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-modes` باشد. اگر این خط نیست، دانلود قدیمی است. `didar.tar.gz` و پوشهٔ `didar-1.1.0` را پاک کنید و wget را دوباره بزنید.
+دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.1 installer 20261113-pdf` باشد. اگر این خط نیست، دانلود قدیمی است. `didar.tar.gz` و پوشهٔ `didar-1.1.1` را پاک کنید و wget را دوباره بزنید.
 
 فلگ‌های اختیاری: `--public-ip` فقط برای nat، `--admin-name`، و `--dir` وقتی برنامه کنار اسکریپت نیست. بدون `--confirm-wipe` اسکریپت صبر می‌کند تا `WIPE-DATABASES` را بنویسید.
 
@@ -81,7 +81,7 @@ sudo bash /var/www/didar/didar-update.sh
 
 ## نصب مجدد همین نسخه
 
-وقتی سرور از قبل روی ۱.۱.۰ است و می‌خواهید فایل‌های همین رلیز را دوباره بگیرید، از این استفاده کنید. همان تگ را یک بار دیگر دانلود می‌کند. پایگاه داده، `config.local.php` و آپلودها می‌مانند. از تنظیمات «نصب مجدد نسخه فعلی» یا:
+وقتی سرور از قبل روی همین نسخه است و می‌خواهید فایل‌های همین رلیز را دوباره بگیرید، از این استفاده کنید. همان تگ را یک بار دیگر دانلود می‌کند. پایگاه داده، `config.local.php` و آپلودها می‌مانند. از تنظیمات «نصب مجدد نسخه فعلی» یا:
 
 ```bash
 sudo didar-reinstall

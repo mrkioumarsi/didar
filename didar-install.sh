@@ -165,7 +165,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-modes"
+echo "Didar 1.1.1 installer 20261113-pdf"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
