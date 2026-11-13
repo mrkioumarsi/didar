@@ -351,7 +351,9 @@ if [ -n "$PRIV" ]; then
     RELAYLINE="relay-ip=${PRIV}"
 fi
 
+LK_EXT="true"
 if [ -n "$PUB" ]; then
+    LK_EXT="false"
     LK_NODE="  node_ip: \"${PUB}\""
 fi
 
@@ -571,9 +573,13 @@ rtc:
   tcp_port: 7881
   port_range_start: 50000
   port_range_end: 60000
-  use_external_ip: true
+  use_external_ip: ${LK_EXT}
+  advertise_internal_ip: true
+  skip_external_ip_validation: true
+  use_ice_lite: false
 ${LK_NODE}
   stun_servers:
+    - stun.l.google.com:19302
     - "${DOMAIN}:3478"
   turn_servers:
     - host: ${DOMAIN}
@@ -916,6 +922,10 @@ install -m 755 "$APPDIR/didar-ssl.sh" /usr/local/sbin/didar-ssl
 
 echo "$APPDIR" > /etc/didar/appdir
 echo "$DOMAIN" > /etc/didar/domain
+if [ -n "$PUB" ]; then
+    echo "$PUB" > /etc/didar/pubip
+    chmod 644 /etc/didar/pubip
+fi
 
 chmod 644 /etc/didar/appdir /etc/didar/domain
 
@@ -949,19 +959,23 @@ server {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
 
-    location /rtc {
+    location ^~ /rtc {
         proxy_pass http://127.0.0.1:7880;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 3600s;
     }
 
-    location /twirp {
+    location ^~ /twirp {
         proxy_pass http://127.0.0.1:7880;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 60s;
     }
 
@@ -1072,19 +1086,23 @@ ${HTTP2_LINE}
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
 
-    location /rtc {
+    location ^~ /rtc {
         proxy_pass http://127.0.0.1:7880;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 3600s;
     }
 
-    location /twirp {
+    location ^~ /twirp {
         proxy_pass http://127.0.0.1:7880;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 60s;
     }
 

@@ -226,8 +226,61 @@ function didar_sudoers(){
  }
  if(didar_fn('exec')&&is_executable('/usr/bin/apt-get')&&!is_executable('/usr/bin/ffmpeg')) exec('bash -c '.escapeshellarg('sleep 3; command -v ffmpeg >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg >/dev/null 2>&1').' >/dev/null 2>&1 &');
 }
+function didar_pub_ip(){
+ $f='/etc/didar/pubip';
+ $ip=is_file($f)?trim((string)@file_get_contents($f)):'';
+ $flags=FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE;
+ if(filter_var($ip,FILTER_VALIDATE_IP,$flags)) return $ip;
+ $got='';
+ if(didar_fn('exec')){
+  $o=[];$c=1;
+  exec('curl -4 -fsS --max-time 8 https://api.ipify.org 2>/dev/null',$o,$c);
+  $got=trim(implode('',$o));
+ }
+ if(!filter_var($got,FILTER_VALIDATE_IP,$flags)){
+  $d=is_file('/etc/didar/domain')?trim((string)@file_get_contents('/etc/didar/domain')):'';
+  if($d!==''&&preg_match('/^[A-Za-z0-9.-]{1,253}$/',$d)){
+   $h=gethostbyname($d);
+   if(is_string($h)&&$h!==$d&&filter_var($h,FILTER_VALIDATE_IP,$flags))$got=$h;
+  }
+ }
+ if(!filter_var($got,FILTER_VALIDATE_IP,$flags)) return '';
+ if(is_dir('/etc/didar')&&is_writable('/etc/didar')){
+  @file_put_contents($f,$got."\n");
+  @chmod($f,0644);
+ }
+ return $got;
+}
+function didar_yaml_rtc($n,$key,$val){
+ $line='  '.$key.': '.$val;
+ if(preg_match('/^  '.preg_quote($key,'/').':[^\n]*/m',$n)) return preg_replace('/^  '.preg_quote($key,'/').':[^\n]*/m',$line,$n,1);
+ return preg_replace('/^(rtc:\s*\n)/m','$1'.$line."\n",$n,1);
+}
+function didar_fix_livekit(){
+ if(PHP_SAPI!=='cli') return;
+ if(function_exists('posix_geteuid')&&posix_geteuid()!==0) return;
+ $f='/etc/livekit.yaml';
+ if(!is_file($f)||!is_writable($f)) return;
+ $t=(string)@file_get_contents($f);
+ if($t==='') return;
+ $n=str_replace(['  - "127.0.0.1"','  - \'127.0.0.1\''],['  - "0.0.0.0"','  - "0.0.0.0"'],$t);
+ $ip=didar_pub_ip();
+ if($ip!==''){
+  $n=didar_yaml_rtc($n,'use_external_ip','false');
+  $n=didar_yaml_rtc($n,'node_ip','"'.$ip.'"');
+ }else{
+  $n=didar_yaml_rtc($n,'use_external_ip','true');
+ }
+ $n=didar_yaml_rtc($n,'advertise_internal_ip','true');
+ $n=didar_yaml_rtc($n,'skip_external_ip_validation','true');
+ $n=didar_yaml_rtc($n,'use_ice_lite','false');
+ if(!is_string($n)||$n===$t) return;
+ @file_put_contents($f,$n);
+ if(didar_fn('exec')) exec('systemctl restart livekit >/dev/null 2>&1');
+}
 function nginx_hide(){
  didar_sudoers();
+ didar_fix_livekit();
  $root=dirname(__DIR__);
  if(is_file($root.'/schema.sql')&&is_dir('/etc/didar')&&is_writable('/etc/didar')){
   @copy($root.'/schema.sql','/etc/didar/schema.sql');
@@ -255,6 +308,8 @@ function nginx_hide(){
   $t=@file_get_contents($f);
   if(!is_string($t)||$t==='')continue;
   $n=str_replace(['fastcgi_read_timeout 120s;','fastcgi_read_timeout 180s;'],['fastcgi_read_timeout 600s;','fastcgi_read_timeout 600s;'],$t);
+  $n=str_replace(['location /rtc {','location /twirp {'],['location ^~ /rtc {','location ^~ /twirp {'],$n);
+  if(!str_contains($n,'X-Forwarded-Proto')) $n=str_replace('proxy_set_header Host $host;',"proxy_set_header Host \$host;\n        proxy_set_header X-Forwarded-Proto \$scheme;\n        proxy_set_header X-Real-IP \$remote_addr;",$n);
   $add='';
   foreach($deny as $line){
    if(!str_contains($n,$line))$add.=" ".$line."\n";

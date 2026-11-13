@@ -13,9 +13,13 @@ if ! printf '%s' "$APPDIR" | grep -Eq '^/[A-Za-z0-9._/-]+$'; then echo "Applicat
 if [ ! -f "$APPDIR/config.php" ]; then echo "Application folder was not found"; exit 1; fi
 export DIDAR_APP="$APPDIR"
 export DIDAR_UPDATE=1
-if [ -f /etc/livekit.yaml ] && grep -q '127.0.0.1' /etc/livekit.yaml; then
- sed -i 's/^  - "127.0.0.1"/  - "0.0.0.0"/' /etc/livekit.yaml
- systemctl restart livekit >/dev/null 2>&1 || true
+if [ -f /etc/livekit.yaml ]; then
+ if grep -q '127.0.0.1' /etc/livekit.yaml; then
+  sed -i 's/^  - "127.0.0.1"/  - "0.0.0.0"/' /etc/livekit.yaml
+ fi
+ if grep -qE '^  use_external_ip:' /etc/livekit.yaml; then
+  sed -i 's/^  use_external_ip:.*/  use_external_ip: false/' /etc/livekit.yaml
+ fi
 fi
 php -r 'require getenv("DIDAR_APP")."/config.php"; exit(update_apply_root()?0:1);'
 php -r 'require getenv("DIDAR_APP")."/config.php"; try{ensure_schema();}catch(Throwable $e){fwrite(STDERR,"schema failed\n"); exit(1);}'

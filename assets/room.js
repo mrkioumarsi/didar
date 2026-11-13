@@ -35,7 +35,7 @@ function sfuStart(){
  lk.on(C.RoomEvent.LocalTrackUnpublished,(pub)=>{if(pub.source===C.Track.Source.ScreenShare){L.scr[0]=null;L.scrS[0]=null;$('#s'+S.pid+'-0').remove();scrHold(0);state()}});
  lk.on(C.RoomEvent.Disconnected,()=>{if(!leaving)toast(t('err.sfu'))});
  if(C.RoomEvent.AudioPlaybackStatusChanged)lk.on(C.RoomEvent.AudioPlaybackStatusChanged,()=>{if(lk.canPlaybackAudio===false){blocked=true;$('#snd').removeClass('na')}});
- return lk.connect(S.lk.url,S.lk.token,{rtcConfig:{iceServers:S.ice||[],iceTransportPolicy:S.policy||'all'},peerConnectionTimeout:25000}).then(()=>{sfuSweep();if(lk.startAudio)lk.startAudio().catch(()=>{blocked=true;$('#snd').removeClass('na')});uh='';ui()}).catch(()=>{if(!leaving)toast(t('err.sfu'))});
+ return lk.connect(S.lk.url,S.lk.token,{rtcConfig:{iceServers:S.ice||[],iceTransportPolicy:S.policy||'all'},peerConnectionTimeout:45000}).then(()=>{sfuSweep();if(lk.startAudio)lk.startAudio().catch(()=>{blocked=true;$('#snd').removeClass('na')});uh='';ui()}).catch(()=>{if(!leaving)toast(t('err.sfu'))});
 }
 function sfuSlot(source){const Src=LivekitClient.Track.Source;if(source===Src.Microphone||source==='microphone')return 'mic';if(source===Src.Camera||source==='camera')return 'cam';if(source===Src.ScreenShare||source==='screen_share')return 'scr';return ''}
 function sfuBox(id){return pcs[id]||(pcs[id]={pc:{close(){}},rs:[],snd:[],q:[],au:null,st:'connected',ct:'sfu'})}
