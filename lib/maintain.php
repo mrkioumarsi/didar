@@ -233,9 +233,13 @@ function didar_pub_ip(){
  if(filter_var($ip,FILTER_VALIDATE_IP,$flags)) return $ip;
  $got='';
  if(didar_fn('exec')){
-  $o=[];$c=1;
-  exec('curl -4 -fsS --max-time 8 https://api.ipify.org 2>/dev/null',$o,$c);
-  $got=trim(implode('',$o));
+  foreach(['https://api.ipify.org','https://ipv4.icanhazip.com','https://ifconfig.me/ip'] as $u){
+   $o=[];$c=1;
+   exec('curl -4 -fsS --max-time 8 '.escapeshellarg($u).' 2>/dev/null',$o,$c);
+   $got=trim(implode('',$o));
+   if(filter_var($got,FILTER_VALIDATE_IP,$flags)) break;
+   $got='';
+  }
  }
  if(!filter_var($got,FILTER_VALIDATE_IP,$flags)){
   $d=is_file('/etc/didar/domain')?trim((string)@file_get_contents('/etc/didar/domain')):'';

@@ -88,6 +88,30 @@ run_certbot() {
     return 1
 }
 
+ok_pub() {
+    printf '%s' "$1" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' || return 1
+    case "$1" in
+        10.*|127.*|0.*|255.*|192.168.*|169.254.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*) return 1 ;;
+    esac
+    return 0
+}
+
+fetch_pub() {
+    local u ip
+    for u in \
+        https://api.ipify.org \
+        https://ipv4.icanhazip.com \
+        https://ifconfig.me/ip
+    do
+        ip="$(curl -4 -fsS --max-time 12 "$u" 2>/dev/null | tr -d '\r\n[:space:]' || true)"
+        if ok_pub "$ip"; then
+            printf '%s' "$ip"
+            return 0
+        fi
+    done
+    return 1
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --domain)       [ $# -ge 2 ] || fail "Missing domain"; DOMAIN="$2"; shift 2 ;;
@@ -379,10 +403,15 @@ dbroot -Nse "SELECT 1" >/dev/null || fail "MariaDB failed after configuration"
 
 step "5. Checking DNS and public IP"
 
-PUB="$(curl -4 -fsS --max-time 12 https://api.ipify.org || true)"
+PUB="$(fetch_pub || true)"
 RESOLVED="$(getent ahostsv4 "$DOMAIN" | awk '{print $1; exit}' || true)"
+RESOLVED="$(printf '%s' "$RESOLVED" | tr -d '\r\n[:space:]')"
+if ! ok_pub "$PUB" && ok_pub "$RESOLVED"; then
+    PUB="$RESOLVED"
+    echo "Public IP from DNS A record: $PUB"
+fi
 
-if [ -n "$PUB" ] && [ -n "$RESOLVED" ] && [ "$PUB" != "$RESOLVED" ]; then
+if ok_pub "$PUB" && ok_pub "$RESOLVED" && [ "$PUB" != "$RESOLVED" ]; then
     echo "WARNING: DNS does not point to this server."
     echo "Domain IP: $RESOLVED"
     echo "Server IP: $PUB"
@@ -394,10 +423,11 @@ EXT=""
 EXTLINE=""
 RELAYLINE=""
 LK_NODE=""
+LK_EXT="false"
 
-if [ -n "$PUB" ] && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then
+if ok_pub "$PUB" && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then
     EXT="${PUB}/${PRIV}"
-elif [ -n "$PUB" ]; then
+elif ok_pub "$PUB"; then
     EXT="$PUB"
 fi
 
@@ -409,11 +439,20 @@ if [ -n "$PRIV" ]; then
     RELAYLINE="relay-ip=${PRIV}"
 fi
 
-LK_EXT="true"
-if [ -n "$PUB" ]; then
-    LK_EXT="false"
+if ok_pub "$PUB"; then
     LK_NODE="  node_ip: \"${PUB}\""
+    install -d -m 700 /etc/didar
+    printf '%s\n' "$PUB" > /etc/didar/pubip
+    chmod 644 /etc/didar/pubip
+elif [ -n "$PRIV" ] && ! ok_pub "$PRIV"; then
+    echo "WARNING: public IP unknown; LiveKit will not STUN-discover through NAT."
+else
+    LK_EXT="true"
 fi
+
+echo "Public IP: ${PUB:-unknown}"
+echo "Private IP: ${PRIV:-unknown}"
+echo "LiveKit use_external_ip: ${LK_EXT}"
 
 step "6. Configuring UFW"
 
@@ -1216,6 +1255,9 @@ chmod 640 \
 
 systemctl enable coturn
 systemctl restart coturn
+if [ -f "$APPDIR/config.php" ]; then
+    DIDAR_APP="$APPDIR" php -r 'require getenv("DIDAR_APP")."/config.php"; if(function_exists("didar_fix_livekit")) didar_fix_livekit();' || true
+fi
 systemctl restart livekit
 
 systemctl is-active --quiet coturn || fail "Coturn is not active after SSL setup"
