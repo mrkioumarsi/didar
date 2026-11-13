@@ -15,55 +15,64 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 
 ## Install
 
-On the server, run this. It downloads the release, then installs:
+On Ubuntu as root, download the release, then run `didar-install.sh`. `--confirm-wipe` is required when there is no prompt. It erases every MariaDB database on this machine. Existing Nginx sites stay. The admin password must be at least 8 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end.
 
 ```bash
-wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.1.0 && tar -xzf didar.tar.gz && cd didar-1.1.0 && sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password'
+wget -qO didar.tar.gz https://codeload.github.com/mrkioumarsi/didar/tar.gz/refs/tags/v1.1.0
+tar -xzf didar.tar.gz
+cd didar-1.1.0
+sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-`ubuntu.sh` still runs the same installer. Put your own admin username and password in that command. The installer password must be at least 8 characters. If you omit `--admin-pass`, the script creates one and prints it once at the end. A non-interactive run also needs `--confirm-wipe`.
-
-The script installs the web server, PHP, the database, Coturn, LiveKit, the certificate, and the audio and video service. It creates the admin account. Existing Nginx sites stay. It wipes every MariaDB database on that machine.
+Replace the domain, email, username, and password. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
 
 Open `https://meet.example.com/` and sign in. In Settings, choose few people or many people. The addresses are already filled in.
 
 ## Update
 
-The database, `config.local.php`, and uploaded files stay.
+Keeps the database, `config.local.php`, rooms, recordings, and uploaded files. Replaces the app files with a newer GitHub release.
 
-From Settings, confirm the GitHub update. On the server:
+From Settings, check GitHub, then confirm Update. On the server:
 
 ```bash
 sudo didar-update
 ```
 
-## Reinstall the current version
+If that command is missing:
 
-Keeps the database, config, and uploads, and puts the current GitHub files back. Use Settings «Reinstall this version», or:
+```bash
+sudo bash /var/www/didar/didar-update.sh
+```
+
+## Reinstall this version
+
+Same as update, but downloads the current tag again (for a server already on 1.1.0). Database, config, and uploads stay. From Settings use «Reinstall this version», or:
 
 ```bash
 sudo didar-reinstall
 ```
 
-A server that is already on 1.1.0 uses this path.
+```bash
+sudo bash /var/www/didar/didar-reinstall.sh
+```
 
 ## Uninstall
 
-Two modes. The script waits until you type the confirm word, unless you pass `--yes`.
+Two modes. Without `--yes` the script waits until you type the confirm word.
 
-Remove only Didar (the Didar database and user, Didar files, the Didar Nginx site, the Didar PHP pool, LiveKit, Coturn, and the Didar certificate). Nginx, PHP, MariaDB, other databases, other sites, certbot, ffmpeg, SSH, and UFW stay:
+`--soft` — type `REMOVE`. Deletes the Didar database and user, Didar files, the Didar Nginx site, the Didar PHP pool, LiveKit, Coturn, and the Didar certificate. Nginx, PHP, MariaDB, other databases, other sites, certbot, ffmpeg, SSH, and UFW stay.
 
 ```bash
 sudo didar-uninstall --soft
 ```
 
-Remove everything the installer added, including Nginx, PHP, MariaDB with every database, Coturn, LiveKit, certbot, ffmpeg, and the firewall rules it opened. Other websites, databases, and certificates on that server are deleted too. SSH and UFW itself stay:
+`--hard` — type `DELETE`. Also removes Nginx, PHP, MariaDB with every database, certbot, ffmpeg, all certificates on this server, and the firewall rules the installer opened. SSH and UFW itself stay. This cannot be undone.
 
 ```bash
 sudo didar-uninstall --hard
 ```
 
-If the commands are not on `PATH`, run the scripts from the app folder:
+Non-interactive: add `--yes` next to `--soft` or `--hard`. If the command is missing:
 
 ```bash
 sudo bash /var/www/didar/didar-uninstall.sh --soft

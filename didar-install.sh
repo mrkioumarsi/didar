@@ -970,7 +970,6 @@ server {
     }
 
     location = /schema.sql { deny all; }
-    location = /ubuntu.sh { deny all; }
     location = /didar-install.sh { deny all; }
     location = /didar-update.sh { deny all; }
     location = /didar-reinstall.sh { deny all; }
@@ -1088,7 +1087,6 @@ ${HTTP2_LINE}
     }
 
     location = /schema.sql { deny all; }
-    location = /ubuntu.sh { deny all; }
     location = /didar-install.sh { deny all; }
     location = /didar-update.sh { deny all; }
     location = /didar-reinstall.sh { deny all; }

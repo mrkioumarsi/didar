@@ -248,7 +248,7 @@ function nginx_hide(){
  }
  $files=didar_nginx_files();
  if(!$files)return;
- $deny=['location = /schema.sql { deny all; }','location = /ubuntu.sh { deny all; }','location = /didar-install.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-reinstall.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /didar-ssl.sh { deny all; }','location = /didar-uninstall.sh { deny all; }','location = /install.php { deny all; }'];
+ $deny=['location = /schema.sql { deny all; }','location = /didar-install.sh { deny all; }','location = /didar-update.sh { deny all; }','location = /didar-reinstall.sh { deny all; }','location = /didar-renew.sh { deny all; }','location = /didar-ssl.sh { deny all; }','location = /didar-uninstall.sh { deny all; }','location = /install.php { deny all; }'];
  $changed=false;
  foreach($files as $f){
   if(!is_writable($f))continue;
