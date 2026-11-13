@@ -9,6 +9,9 @@ function part(){
  $p['owner']=$p['user_id']?'u'.$p['user_id']:'g'.$p['id'];
  return $p;
 }
+function host_here($rid){
+ return (bool)q("SELECT 1 FROM participants p LEFT JOIN users u ON u.id=p.user_id LEFT JOIN room_members m ON m.room_id=p.room_id AND m.user_id=p.user_id WHERE p.room_id=? AND p.left_at IS NULL AND (u.role='admin' OR IFNULL(m.is_manager,0)=1) LIMIT 1",[$rid])->fetch();
+}
 function save_avatar($uid){
  if(empty($_FILES['f'])||$_FILES['f']['error'])fail(t('err.nofile'));
  if($_FILES['f']['size']>5*1048576)fail(t('err.filebig'));
@@ -62,6 +65,7 @@ function file_label($raw,$ext){
 }
 function file_take(){
  $p=part();
+ if(!$p['mgr']&&!host_here($p['room_id']))fail(t('err.nohost'));
  if(!$p['mgr']&&!$p['can_file'])fail(t('err.nofileperm'));
  if(empty($_FILES['f'])||!is_uploaded_file($_FILES['f']['tmp_name']??'')||!empty($_FILES['f']['error']))fail(t('err.nofile'));
  $add=(int)$_FILES['f']['size'];
@@ -384,6 +388,7 @@ try{
   $p=part();
   $type=$P['type']??'';
   if(!in_array($type,['offer','answer','ice','wbadd','wbundo','wbclear','wbreq','wbfull','fadd','fundo','fclear','freq','ffull','rview','fopen'],true))fail(t('err.badop'));
+  if(in_array($type,['wbadd','wbundo','wbfull','wbclear','fadd','fundo','ffull','fclear','rview','fopen'],true)&&!$p['mgr']&&!host_here($p['room_id']))fail(t('err.nohost'));
   if(in_array($type,['wbadd','wbundo','wbfull'],true)&&!($p['mgr']||$p['can_board']))fail(t('err.noboard'));
   if($type==='wbclear'&&!$p['mgr'])fail(t('err.boardclear'));
   if(in_array($type,['fadd','fundo','ffull'],true)&&!($p['mgr']||$p['can_file']||$p['can_board']))fail(t('err.nofileperm'));
@@ -396,10 +401,12 @@ try{
  case 'state':
   $p=part();
   $m=$p['mgr'];
-  q("UPDATE participants SET mic_on=?,cam_on=?,screen_on=? WHERE id=?",[(int)($P['mic']&&($m||$p['can_mic'])),(int)($P['cam']&&($m||$p['can_cam'])),($m||$p['can_screen'])?((int)$P['scr']&7):0,$p['id']]);
+  $live=$m||host_here($p['room_id']);
+  q("UPDATE participants SET mic_on=?,cam_on=?,screen_on=? WHERE id=?",[(int)($P['mic']&&$live&&($m||$p['can_mic'])),(int)($P['cam']&&$live&&($m||$p['can_cam'])),($live&&($m||$p['can_screen']))?((int)$P['scr']&7):0,$p['id']]);
   out(['ok'=>1]);
  case 'chat':
   $p=part();
+  if(!$p['mgr']&&!host_here($p['room_id']))fail(t('err.nohost'));
   $on=q("SELECT chat_enabled FROM rooms WHERE id=?",[$p['room_id']])->fetchColumn();
   if(!$on&&!$p['mgr'])fail(t('err.chaton'));
   $text=trim(mb_substr($P['text']??'',0,500));
