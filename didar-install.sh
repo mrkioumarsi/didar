@@ -170,7 +170,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-nat"
+echo "Didar 1.1.0 installer 20261113-direct"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
@@ -408,21 +408,10 @@ dbroot -Nse "SELECT 1" >/dev/null || fail "MariaDB failed after configuration"
 
 step "5. Checking DNS and public IP"
 
-PUB="$(fetch_pub || true)"
+PRIV="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)"
+PRIV="$(printf '%s' "$PRIV" | tr -d '\r\n[:space:]')"
 RESOLVED="$(getent ahostsv4 "$DOMAIN" | awk '{print $1; exit}' || true)"
 RESOLVED="$(printf '%s' "$RESOLVED" | tr -d '\r\n[:space:]')"
-if ! ok_pub "$PUB" && ok_pub "$RESOLVED"; then
-    PUB="$RESOLVED"
-    echo "Public IP from DNS A record: $PUB"
-fi
-
-if ok_pub "$PUB" && ok_pub "$RESOLVED" && [ "$PUB" != "$RESOLVED" ]; then
-    echo "WARNING: DNS does not point to this server."
-    echo "Domain IP: $RESOLVED"
-    echo "Server IP: $PUB"
-fi
-
-PRIV="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)"
 
 EXT=""
 EXTLINE=""
@@ -430,14 +419,29 @@ RELAYLINE=""
 LK_NODE=""
 LK_EXT="false"
 LK_SKIP=""
-MEDIA_MODE="unknown"
+LK_IPFLAG=""
+MEDIA_MODE="direct"
+PUB=""
 
-if ok_pub "$PUB" && [ -n "$PRIV" ] && [ "$PUB" != "$PRIV" ]; then
-    EXT="${PUB}/${PRIV}"
-    MEDIA_MODE="nat"
-elif ok_pub "$PUB"; then
-    EXT="$PUB"
+if ok_pub "$PRIV"; then
+    PUB="$PRIV"
     MEDIA_MODE="direct"
+    EXT="$PUB"
+    LK_NODE="  node_ip: \"${PUB}\""
+    LK_IPFLAG=" --node-ip ${PUB}"
+    install -d -m 700 /etc/didar
+    printf '%s\n' "$PUB" > /etc/didar/pubip
+    chmod 644 /etc/didar/pubip
+    if ok_pub "$RESOLVED" && [ "$PUB" != "$RESOLVED" ]; then
+        echo "WARNING: DNS does not point to this server."
+        echo "Domain IP: $RESOLVED"
+        echo "Server IP: $PUB"
+    fi
+else
+    MEDIA_MODE="nat"
+    LK_EXT="true"
+    LK_SKIP="  skip_external_ip_validation: true"
+    echo "This server is not on a public IP. LiveKit will use its own address."
 fi
 
 if [ -n "$EXT" ]; then
@@ -448,32 +452,11 @@ if [ -n "$PRIV" ]; then
     RELAYLINE="relay-ip=${PRIV}"
 fi
 
-if ok_pub "$PUB"; then
-    LK_NODE="  node_ip: \"${PUB}\""
-    install -d -m 700 /etc/didar
-    printf '%s\n' "$PUB" > /etc/didar/pubip
-    chmod 644 /etc/didar/pubip
-else
-    LK_EXT="true"
-    LK_SKIP="  skip_external_ip_validation: true"
-    echo "WARNING: public IP unknown; LiveKit will STUN-discover."
-fi
-
-LK_IPFLAG=""
-ICE_RELAY=0
-if ok_pub "$PUB"; then
-    LK_IPFLAG=" --node-ip ${PUB}"
-fi
-if [ "$MEDIA_MODE" = "nat" ]; then
-    ICE_RELAY=1
-fi
-
 echo "Public IP: ${PUB:-unknown}"
 echo "Private IP: ${PRIV:-unknown}"
 echo "Media mode: ${MEDIA_MODE}"
 echo "LiveKit use_external_ip: ${LK_EXT}"
 echo "LiveKit node_ip: ${PUB:-none}"
-echo "ICE relay: ${ICE_RELAY}"
 
 step "6. Configuring UFW"
 

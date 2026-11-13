@@ -17,9 +17,6 @@ if [ -f /etc/livekit.yaml ]; then
  if grep -q '127.0.0.1' /etc/livekit.yaml; then
   sed -i 's/^  - "127.0.0.1"/  - "0.0.0.0"/' /etc/livekit.yaml
  fi
- if grep -qE '^  use_external_ip:' /etc/livekit.yaml; then
-  sed -i 's/^  use_external_ip:.*/  use_external_ip: false/' /etc/livekit.yaml
- fi
 fi
 php -r 'require getenv("DIDAR_APP")."/config.php"; exit(update_apply_root()?0:1);'
 php -r 'require getenv("DIDAR_APP")."/config.php"; try{ensure_schema();}catch(Throwable $e){fwrite(STDERR,"schema failed\n"); exit(1);}'

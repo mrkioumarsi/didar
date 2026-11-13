@@ -25,7 +25,7 @@ cd didar-1.1.0
 sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-nat`. If that line is missing, the download is an old copy; delete `didar.tar.gz` and `didar-1.1.0` and run wget again. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
+Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-direct`. If that line is missing, the download is an old copy; delete `didar.tar.gz` and `didar-1.1.0` and run wget again. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
 
 Open `https://meet.example.com/` and sign in. In Settings, choose few people or many people. The addresses are already filled in.
 

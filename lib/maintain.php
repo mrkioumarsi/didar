@@ -226,10 +226,25 @@ function didar_sudoers(){
  }
  if(didar_fn('exec')&&is_executable('/usr/bin/apt-get')&&!is_executable('/usr/bin/ffmpeg')) exec('bash -c '.escapeshellarg('sleep 3; command -v ffmpeg >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg >/dev/null 2>&1').' >/dev/null 2>&1 &');
 }
+function didar_local_ip(){
+ if(!didar_fn('exec')) return '';
+ $o=[];$c=1;
+ exec('ip -4 route get 1.1.1.1 2>/dev/null',$o,$c);
+ if(preg_match('/\bsrc\s+([0-9.]+)/',implode(' ',$o),$m)) return $m[1];
+ return '';
+}
 function didar_pub_ip(){
+ $flags=FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE;
+ $local=didar_local_ip();
+ if(filter_var($local,FILTER_VALIDATE_IP,$flags)){
+  if(is_dir('/etc/didar')&&is_writable('/etc/didar')){
+   @file_put_contents('/etc/didar/pubip',$local."\n");
+   @chmod('/etc/didar/pubip',0644);
+  }
+  return $local;
+ }
  $f='/etc/didar/pubip';
  $ip=is_file($f)?trim((string)@file_get_contents($f)):'';
- $flags=FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE;
  if(filter_var($ip,FILTER_VALIDATE_IP,$flags)) return $ip;
  $got='';
  if(didar_fn('exec')){
@@ -264,6 +279,20 @@ function didar_yaml_drop_rtc_list($n,$key){
  $x=preg_replace('/^  '.preg_quote($key,'/').':[ \t]*\n(?:[ \t]{4,}.*\n)*/m','',$n);
  return is_string($x)?$x:$n;
 }
+function didar_fix_coturn($ip){
+ $f='/etc/turnserver.conf';
+ if(!is_file($f)||!is_writable($f)) return;
+ $t=(string)@file_get_contents($f);
+ if($t==='') return;
+ $n=$t;
+ if(preg_match('/^external-ip=.*$/m',$n)) $n=preg_replace('/^external-ip=.*$/m','external-ip='.$ip,$n,1);
+ else $n=rtrim($n)."\nexternal-ip=".$ip."\n";
+ if(preg_match('/^relay-ip=.*$/m',$n)) $n=preg_replace('/^relay-ip=.*$/m','relay-ip='.$ip,$n,1);
+ else $n=rtrim($n)."\nrelay-ip=".$ip."\n";
+ if($n===$t) return;
+ @file_put_contents($f,$n);
+ if(didar_fn('exec')) exec('systemctl restart coturn >/dev/null 2>&1');
+}
 function didar_fix_livekit(){
  if(PHP_SAPI!=='cli') return;
  if(function_exists('posix_geteuid')&&posix_geteuid()!==0) return;
@@ -271,37 +300,48 @@ function didar_fix_livekit(){
  if(!is_file($f)||!is_writable($f)) return;
  $t=(string)@file_get_contents($f);
  if($t==='') return;
+ $flags=FILTER_FLAG_IPV4|FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE;
+ $local=didar_local_ip();
+ $direct=filter_var($local,FILTER_VALIDATE_IP,$flags);
  $n=str_replace(['  - "127.0.0.1"','  - \'127.0.0.1\''],['  - "0.0.0.0"','  - "0.0.0.0"'],$t);
  $n=didar_yaml_drop_rtc_list($n,'stun_servers');
  $n=didar_yaml_drop_rtc_list($n,'turn_servers');
- $ip=didar_pub_ip();
- if($ip!==''){
+ $drop='/etc/systemd/system/livekit.service.d/node-ip.conf';
+ if($direct){
+  $ip=$local;
   $n=didar_yaml_rtc($n,'use_external_ip','false');
   $n=didar_yaml_rtc($n,'node_ip','"'.$ip.'"');
- }else{
-  $n=didar_yaml_rtc($n,'use_external_ip','true');
-  $n=didar_yaml_rtc($n,'skip_external_ip_validation','true');
- }
- $n=didar_yaml_rtc($n,'advertise_internal_ip','false');
- $n=didar_yaml_rtc($n,'use_ice_lite','false');
- $changed=is_string($n)&&$n!==$t;
- if($changed) @file_put_contents($f,$n);
- if($ip!==''&&preg_match('/^[0-9.]+$/',$ip)){
+  $n=didar_yaml_rtc($n,'advertise_internal_ip','false');
+  $n=didar_yaml_rtc($n,'use_ice_lite','false');
+  if(is_dir('/etc/didar')&&is_writable('/etc/didar')){
+   @file_put_contents('/etc/didar/pubip',$ip."\n");
+   @file_put_contents('/etc/didar/media-mode',"direct\n");
+  }
   $dir='/etc/systemd/system/livekit.service.d';
   if(!is_dir($dir)) @mkdir($dir,0755,true);
   $unit="[Service]\nExecStart=\nExecStart=/usr/local/bin/livekit-server --config /etc/livekit.yaml --node-ip ".$ip."\n";
-  $cur=is_file($dir.'/node-ip.conf')?(string)@file_get_contents($dir.'/node-ip.conf'):'';
+  $cur=is_file($drop)?(string)@file_get_contents($drop):'';
   if($cur!==$unit){
-   @file_put_contents($dir.'/node-ip.conf',$unit);
-   $changed=true;
+   @file_put_contents($drop,$unit);
    if(didar_fn('exec')) exec('systemctl daemon-reload >/dev/null 2>&1');
   }
-  $mode=is_file('/etc/didar/media-mode')?trim((string)@file_get_contents('/etc/didar/media-mode')):'';
-  if($mode==='nat'&&function_exists('q')){
-   try{q("UPDATE settings SET v='1' WHERE k='ice_relay'",[]);}catch(Throwable $e){}
+  didar_fix_coturn($ip);
+  if(function_exists('q')){try{q("UPDATE settings SET v='0' WHERE k='ice_relay'",[]);}catch(Throwable $e){}}
+ }else{
+  $n=preg_replace('/^  node_ip:[^\n]*\n/m','',$n);
+  $n=didar_yaml_rtc($n,'use_external_ip','true');
+  $n=didar_yaml_rtc($n,'skip_external_ip_validation','true');
+  $n=didar_yaml_rtc($n,'advertise_internal_ip','false');
+  $n=didar_yaml_rtc($n,'use_ice_lite','false');
+  if(is_file($drop)){
+   @unlink($drop);
+   if(didar_fn('exec')) exec('systemctl daemon-reload >/dev/null 2>&1');
   }
  }
- if($changed&&didar_fn('exec')) exec('systemctl restart livekit >/dev/null 2>&1');
+ if(!is_string($n)) return;
+ $changed=$n!==$t;
+ if($changed) @file_put_contents($f,$n);
+ if(($changed||$direct)&&didar_fn('exec')) exec('systemctl restart livekit >/dev/null 2>&1');
 }
 function nginx_hide(){
  didar_sudoers();
