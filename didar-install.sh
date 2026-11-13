@@ -11,15 +11,18 @@ ADMIN_PASS=""
 ADMIN_NAME="Admin"
 CONFIRM_WIPE=0
 MEDIA_MODE="unknown"
+NET=""
+PUBLIC_IP=""
 ICE_RELAY=0
 LK_IPFLAG=""
+DIDAR_VPN_STARTED=0
 
 mkdir -p /var/log
 touch "$LOG"
 chmod 600 "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 
-trap 'rc=$?; echo; echo "ERROR: Installation failed at line ${LINENO}, exit code ${rc}."; echo "Log: '"$LOG"'"; exit "$rc"' ERR
+trap 'rc=$?; stop_install_vpn; echo; echo "ERROR: Installation failed at line ${LINENO}, exit code ${rc}."; echo "Log: '"$LOG"'"; exit "$rc"' ERR
 
 step() {
     echo
@@ -28,9 +31,34 @@ step() {
     echo "============================================================"
 }
 
+stop_install_vpn() {
+    if [ "${DIDAR_VPN_STARTED:-0}" != 1 ]; then
+        return 0
+    fi
+    DIDAR_VPN_STARTED=0
+    if command -v vpn-stop >/dev/null 2>&1; then
+        vpn-stop || true
+    fi
+}
+
 fail() {
+    stop_install_vpn
     echo "ERROR: $1"
     exit 1
+}
+
+route_dev() {
+    ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}' || true
+}
+
+refuse_tunnel() {
+    local d
+    d="$(route_dev | tr -d '\r\n[:space:]')"
+    case "$d" in
+        sing-box*|tun*|tap*|wg*|tailscale*|docker*|warp*)
+            fail "Stop the VPN first (vpn-stop). The installer starts it only for the certificate, then stops it."
+            ;;
+    esac
 }
 
 prefer_ipv4() {
@@ -94,25 +122,9 @@ run_certbot() {
 ok_pub() {
     printf '%s' "$1" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' || return 1
     case "$1" in
-        10.*|127.*|0.*|255.*|192.168.*|169.254.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*) return 1 ;;
+        10.*|127.*|0.*|255.*|192.168.*|169.254.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*|100.6[4-9].*|100.[7-9][0-9].*|100.1[0-1][0-9].*|100.12[0-7].*) return 1 ;;
     esac
     return 0
-}
-
-fetch_pub() {
-    local u ip
-    for u in \
-        https://api.ipify.org \
-        https://ipv4.icanhazip.com \
-        https://ifconfig.me/ip
-    do
-        ip="$(curl -4 -fsS --max-time 12 "$u" 2>/dev/null | tr -d '\r\n[:space:]' || true)"
-        if ok_pub "$ip"; then
-            printf '%s' "$ip"
-            return 0
-        fi
-    done
-    return 1
 }
 
 while [ $# -gt 0 ]; do
@@ -123,6 +135,8 @@ while [ $# -gt 0 ]; do
         --admin-user)   [ $# -ge 2 ] || fail "Missing admin username"; ADMIN_USER="$2"; shift 2 ;;
         --admin-pass)   [ $# -ge 2 ] || fail "Missing admin password"; ADMIN_PASS="$2"; shift 2 ;;
         --admin-name)   [ $# -ge 2 ] || fail "Missing admin name"; ADMIN_NAME="$2"; shift 2 ;;
+        --net)          [ $# -ge 2 ] || fail "Missing network mode"; NET="$2"; shift 2 ;;
+        --public-ip)    [ $# -ge 2 ] || fail "Missing public IP"; PUBLIC_IP="$2"; shift 2 ;;
         --confirm-wipe) CONFIRM_WIPE=1; shift ;;
         *)
             fail "Unknown argument: $1"
@@ -137,6 +151,13 @@ done
 
 [[ "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || fail "Invalid domain"
 [[ "$EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || fail "Invalid email"
+case "$NET" in
+    nat|direct) ;;
+    *) fail "Choose a network mode: --net nat or --net direct" ;;
+esac
+if [ -n "$PUBLIC_IP" ] && ! ok_pub "$PUBLIC_IP"; then
+    fail "Invalid --public-ip"
+fi
 [[ "$ADMIN_USER" =~ ^[A-Za-z0-9._-]{3,50}$ ]] || fail "Invalid admin username"
 
 case "$ADMIN_PASS" in
@@ -170,7 +191,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-direct"
+echo "Didar 1.1.0 installer 20261113-net"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
@@ -250,6 +271,8 @@ if ! command -v mariadbd >/dev/null 2>&1 && ! command -v mysqld >/dev/null 2>&1;
 fi
 
 PHPVER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+
+refuse_tunnel
 
 step "2. Preparing fresh MariaDB installation"
 
@@ -408,48 +431,56 @@ dbroot -Nse "SELECT 1" >/dev/null || fail "MariaDB failed after configuration"
 
 step "5. Checking DNS and public IP"
 
+refuse_tunnel
+
 PRIV="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)"
 PRIV="$(printf '%s' "$PRIV" | tr -d '\r\n[:space:]')"
 RESOLVED="$(getent ahostsv4 "$DOMAIN" | awk '{print $1; exit}' || true)"
 RESOLVED="$(printf '%s' "$RESOLVED" | tr -d '\r\n[:space:]')"
 
-EXT=""
 EXTLINE=""
 RELAYLINE=""
 LK_NODE=""
 LK_EXT="false"
-LK_SKIP=""
 LK_IPFLAG=""
-MEDIA_MODE="direct"
+MEDIA_MODE="$NET"
 PUB=""
 
-if ok_pub "$PRIV"; then
-    PUB="$PRIV"
-    MEDIA_MODE="direct"
-    EXT="$PUB"
-    LK_NODE="  node_ip: \"${PUB}\""
-    LK_IPFLAG=" --node-ip ${PUB}"
-    install -d -m 700 /etc/didar
-    printf '%s\n' "$PUB" > /etc/didar/pubip
-    chmod 644 /etc/didar/pubip
-    if ok_pub "$RESOLVED" && [ "$PUB" != "$RESOLVED" ]; then
-        echo "WARNING: DNS does not point to this server."
-        echo "Domain IP: $RESOLVED"
-        echo "Server IP: $PUB"
+if [ "$NET" = "direct" ]; then
+    if ! ok_pub "$PRIV"; then
+        fail "This server NIC is not a public IP. Use --net nat."
     fi
+    PUB="$PRIV"
+    EXTLINE="external-ip=${PUB}"
+    RELAYLINE="relay-ip=${PUB}"
 else
-    MEDIA_MODE="nat"
-    LK_EXT="true"
-    LK_SKIP="  skip_external_ip_validation: true"
-    echo "This server is not on a public IP. LiveKit will use its own address."
-fi
-
-if [ -n "$EXT" ]; then
-    EXTLINE="external-ip=${EXT}"
-fi
-
-if [ -n "$PRIV" ]; then
+    if [ -z "$PRIV" ]; then
+        fail "Private IP was not found"
+    fi
+    if ok_pub "$PRIV"; then
+        fail "This server NIC is already a public IP. Use --net direct."
+    fi
+    if [ -n "$PUBLIC_IP" ]; then
+        PUB="$PUBLIC_IP"
+    elif ok_pub "$RESOLVED"; then
+        PUB="$RESOLVED"
+    else
+        fail "Public IP was not found. Pass --public-ip or point the domain A record at this server."
+    fi
+    EXTLINE="external-ip=${PUB}/${PRIV}"
     RELAYLINE="relay-ip=${PRIV}"
+fi
+
+LK_NODE="  node_ip: \"${PUB}\""
+LK_IPFLAG=" --node-ip ${PUB}"
+install -d -m 700 /etc/didar
+printf '%s\n' "$PUB" > /etc/didar/pubip
+chmod 644 /etc/didar/pubip
+
+if ok_pub "$RESOLVED" && [ "$PUB" != "$RESOLVED" ]; then
+    echo "WARNING: DNS does not point at the public IP used for media."
+    echo "Domain IP: $RESOLVED"
+    echo "Media IP: $PUB"
 fi
 
 echo "Public IP: ${PUB:-unknown}"
@@ -677,7 +708,6 @@ rtc:
   use_external_ip: ${LK_EXT}
   advertise_internal_ip: false
   use_ice_lite: false
-${LK_SKIP}
 ${LK_NODE}
 
 turn:
@@ -1123,8 +1153,16 @@ chmod 644 /etc/didar/email
 prefer_ipv4
 write_acme_py
 echo "Checking Let's Encrypt API..."
-if ! curl -4 -fsS -m 90 -o /dev/null "https://acme-v02.api.letsencrypt.org/directory"; then
-    echo "Let's Encrypt API is slow or unreachable on IPv4. certbot will retry."
+if ! curl -4 -fsS -m 25 -o /dev/null "https://acme-v02.api.letsencrypt.org/directory"; then
+    echo "Let's Encrypt API is slow or unreachable on IPv4."
+    if command -v vpn-start >/dev/null 2>&1; then
+        echo "Starting VPN for the certificate only..."
+        if vpn-start; then
+            DIDAR_VPN_STARTED=1
+        else
+            echo "vpn-start failed."
+        fi
+    fi
 fi
 if ! run_certbot certonly \
     --webroot \
@@ -1134,8 +1172,11 @@ if ! run_certbot certonly \
     --agree-tos \
     --non-interactive \
     --keep-until-expiring; then
-    fail "Let's Encrypt timed out on acme-v02.api.letsencrypt.org:443. Open outbound HTTPS to Let's Encrypt, wait, then re-run the installer."
+    stop_install_vpn
+    fail "Let's Encrypt timed out on acme-v02.api.letsencrypt.org:443. Run vpn-start, re-run the installer, then run vpn-stop."
 fi
+stop_install_vpn
+refuse_tunnel
 
 [ -s "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] || fail "SSL certificate was not created"
 [ -s "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ] || fail "SSL private key was not created"

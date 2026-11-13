@@ -22,10 +22,12 @@
 wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
 cd didar-1.1.0
-sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
+sudo bash didar-install.sh --net nat --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-direct` باشد. اگر این خط نیست، دانلود قدیمی است؛ `didar.tar.gz` و پوشه `didar-1.1.0` را پاک کنید و wget را دوباره بزنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد.
+اگر خود کارت شبکه سرور همان IP عمومی است، به‌جای `--net nat` از `--net direct` استفاده کنید. پشت NAT، IP عمومی همان رکورد A دامنه است. اگر رکورد هنوز نیست، `--public-ip` را بدهید. قبل از نصب VPN را خاموش کنید (`vpn-stop`). اگر Let's Encrypt در دسترس نباشد، نصب‌کننده فقط برای گواهی `vpn-start` می‌زند و بعد `vpn-stop`.
+
+دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-net` باشد. اگر این خط نیست، دانلود قدیمی است؛ `didar.tar.gz` و پوشه `didar-1.1.0` را پاک کنید و wget را دوباره بزنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد. رمز پایگاه داده قبل از نام کاربری مدیر چاپ می‌شود.
 
 سپس `https://meet.example.com/` را باز کنید و وارد شوید. در تنظیمات تعداد کم یا تعداد زیاد را انتخاب کنید. آدرس‌ها از قبل پر شده است.
 
@@ -82,7 +84,7 @@ sudo bash /var/www/didar/didar-uninstall.sh --hard
 
 ## NAT و رسانه
 
-رکورد A باید IP عمومی باشد. اگر سرور پشت NAT است، پورت‌های بالا را به IP خصوصی فوروارد کنید. نصب‌کننده `external-ip` کاترن را عمومی/خصوصی می‌نویسد و IP عمومی را به LiveKit می‌دهد.
+`--net nat` برای کارت شبکهٔ خصوصی است. `node_ip` در LiveKit همان IP عمومی است، `use_external_ip` خاموش می‌ماند، و Coturn به‌صورت `external-ip=PUBLIC/PRIVATE` با `relay-ip` روی کارت خصوصی تنظیم می‌شود. `--net direct` فقط وقتی است که `ip route` خودش IP عمومی را نشان دهد؛ آن‌وقت Coturn همان آدرس را برای `external-ip` و `relay-ip` می‌گذارد. تا وقتی جلسه باز است VPN باید خاموش بماند. در حالت nat پورت‌های بالا را به IP خصوصی فوروارد کنید. از اینترنت موبایل تست کنید. گوشی روی همان وای‌فای سرور معمولاً hairpin ندارد.
 
 کلاینت پشت NAT از STUN روی ۳۴۷۸ و TURN روی ۳۴۷۸ UDP، ۳۴۷۸ TCP و ۵۳۴۹ TLS استفاده می‌کند. این آدرس‌ها در تنظیمات پر شده‌اند. اگر صدا یا تصویر قطع ماند، در تنظیمات ICE relay را روشن کنید تا مسیر از TURN برود.
 

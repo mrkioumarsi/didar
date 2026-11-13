@@ -22,10 +22,12 @@ On Ubuntu as root, download the release, then run `didar-install.sh`. `--confirm
 wget -qO didar.tar.gz "https://github.com/mrkioumarsi/didar/archive/refs/tags/v1.1.0.tar.gz?$(date +%s)"
 tar -xzf didar.tar.gz
 cd didar-1.1.0
-sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
+sudo bash didar-install.sh --net nat --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-direct`. If that line is missing, the download is an old copy; delete `didar.tar.gz` and `didar-1.1.0` and run wget again. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account.
+On a server whose own NIC is the public IP, use `--net direct` instead of `--net nat`. Behind NAT, the public address is the domain A record, or `--public-ip` when that record is not ready yet. Stop any VPN before install (`vpn-stop`). If Let's Encrypt cannot be reached, the installer runs `vpn-start` only for the certificate and then `vpn-stop`.
+
+Replace the domain, email, username, and password. The first installer line must be `Didar 1.1.0 installer 20261113-net`. If that line is missing, the download is an old copy; delete `didar.tar.gz` and `didar-1.1.0` and run wget again. The installer puts Nginx, PHP, MariaDB, Coturn, LiveKit, the HTTPS certificate, and the media ports on this machine, then creates the admin account. The database password is printed before the admin username.
 
 Open `https://meet.example.com/` and sign in. In Settings, choose few people or many people. The addresses are already filled in.
 
@@ -82,7 +84,7 @@ sudo bash /var/www/didar/didar-uninstall.sh --hard
 
 ## NAT and media
 
-The A record must be the public IP. If the server is behind NAT, forward the ports listed above to the private IP. The installer writes Coturn `external-ip` as public/private and advertises the public IP to LiveKit.
+`--net nat` is for a private NIC. LiveKit `node_ip` is the public IP, `use_external_ip` stays false, and Coturn uses `external-ip=PUBLIC/PRIVATE` with `relay-ip` on the private NIC. `--net direct` is only when `ip route` src is already that public IP; Coturn then uses the same address for `external-ip` and `relay-ip`. Leave the VPN stopped while people are in a room. Forward the ports above to the private IP when the mode is nat. Test from mobile data. A phone on the same Wi-Fi as the server often cannot hairpin the public hostname.
 
 Clients behind NAT use STUN on 3478 and TURN on 3478 UDP, 3478 TCP, and 5349 TLS. Those addresses are filled in Settings. If audio or video still fail, turn on ICE relay in Settings so the path uses TURN.
 
