@@ -564,7 +564,7 @@ fi
 cat > /etc/livekit.yaml <<EOF
 port: 7880
 bind_addresses:
-  - "127.0.0.1"
+  - "0.0.0.0"
 log_level: info
 
 rtc:
