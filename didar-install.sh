@@ -30,6 +30,64 @@ fail() {
     exit 1
 }
 
+prefer_ipv4() {
+    local f=/etc/gai.conf
+    touch "$f"
+    if grep -Eq '^[[:space:]]*precedence[[:space:]]+::ffff:0:0/96' "$f"; then
+        return 0
+    fi
+    printf '\nprecedence ::ffff:0:0/96  100\n' >> "$f"
+}
+
+write_acme_py() {
+    install -d -m 755 /etc/didar/py
+    cat > /etc/didar/py/sitecustomize.py <<'PY'
+import socket
+_ga = socket.getaddrinfo
+def getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if family == 0:
+        try:
+            return _ga(host, port, socket.AF_INET, type, proto, flags)
+        except OSError:
+            pass
+    return _ga(host, port, family, type, proto, flags)
+socket.getaddrinfo = getaddrinfo
+try:
+    from requests.sessions import Session as _S
+    _orig = _S.request
+    def _request(self, method, url, **kw):
+        t = kw.get("timeout", 120)
+        if t is None or (isinstance(t, (int, float)) and t < 120):
+            kw["timeout"] = 120
+        return _orig(self, method, url, **kw)
+    _S.request = _request
+except Exception:
+    pass
+PY
+    chmod 644 /etc/didar/py/sitecustomize.py
+}
+
+run_certbot() {
+    local n=1 max=5 wait=20
+    umask 022
+    while [ "$n" -le "$max" ]; do
+        echo "Let's Encrypt attempt ${n}/${max}..."
+        if PYTHONPATH="/etc/didar/py${PYTHONPATH:+:$PYTHONPATH}" certbot "$@"; then
+            umask 077
+            return 0
+        fi
+        echo "Let's Encrypt attempt ${n}/${max} failed."
+        n=$((n + 1))
+        if [ "$n" -le "$max" ]; then
+            echo "Waiting ${wait}s (acme-v02.api.letsencrypt.org:443)..."
+            sleep "$wait"
+            wait=$((wait + 20))
+        fi
+    done
+    umask 077
+    return 1
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --domain)       [ $# -ge 2 ] || fail "Missing domain"; DOMAIN="$2"; shift 2 ;;
@@ -1031,16 +1089,24 @@ step "20. Final stage: SSL, HTTPS and Coturn certificates"
 # Obtain or renew the certificate while the HTTP ACME challenge is reachable.
 install -d -m 755 /var/www/certbot
 chmod 755 /var/www/certbot
-umask 022
-certbot certonly \
+printf '%s\n' "$EMAIL" > /etc/didar/email
+chmod 644 /etc/didar/email
+prefer_ipv4
+write_acme_py
+echo "Checking Let's Encrypt API..."
+if ! curl -4 -fsS -m 90 -o /dev/null "https://acme-v02.api.letsencrypt.org/directory"; then
+    echo "Let's Encrypt API is slow or unreachable on IPv4. certbot will retry."
+fi
+if ! run_certbot certonly \
     --webroot \
     -w /var/www/certbot \
     -d "$DOMAIN" \
     --email "$EMAIL" \
     --agree-tos \
     --non-interactive \
-    --keep-until-expiring
-umask 077
+    --keep-until-expiring; then
+    fail "Let's Encrypt timed out on acme-v02.api.letsencrypt.org:443. Open outbound HTTPS to Let's Encrypt, wait, then re-run the installer."
+fi
 
 [ -s "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] || fail "SSL certificate was not created"
 [ -s "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ] || fail "SSL private key was not created"

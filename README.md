@@ -12,6 +12,7 @@ The web app handles sign-in, languages, the calendar, and a simple view of who i
 - A domain whose A record points at the public IP of that server
 - An email address for the HTTPS certificate
 - These ports open on the public IP, and forwarded to the server if it sits behind NAT: 22, 80, 443, 3478 (TCP and UDP), 5349 (TCP), 7881 (TCP), UDP 49152–49999, and UDP 50000–60000
+- Outbound HTTPS to Let's Encrypt (`acme-v02.api.letsencrypt.org`). If certificate issuance times out, wait and run the installer again.
 
 ## Install
 
