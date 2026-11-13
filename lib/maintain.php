@@ -75,7 +75,7 @@ function didar_rrmdir($dir){
  @rmdir($dir);
 }
 function gh_save($url,$dest){
- if(!preg_match('#^https://codeload\.github\.com/mrkioumarsi/didar/zip/refs/tags/v\d+\.\d+\.\d+$#',$url)) return false;
+ if(!preg_match('#^https://github\.com/mrkioumarsi/didar/archive/refs/tags/v\d+\.\d+\.\d+\.zip\?t=\d+$#',$url)) return false;
  if(!function_exists('curl_init')) return false;
  $fh=@fopen($dest,'wb');
  if(!$fh) return false;
@@ -460,7 +460,7 @@ function update_pull($root,$reinstall=false){
  $zip=rtrim(sys_get_temp_dir(),'\\/').'/didar-up-'.bin2hex(random_bytes(4)).'.zip';
  $src='';
  $ok=false;
- if(gh_save('https://codeload.github.com/mrkioumarsi/didar/zip/refs/tags/'.$tag,$zip)){
+ if(gh_save('https://github.com/mrkioumarsi/didar/archive/refs/tags/'.$tag.'.zip?t='.time(),$zip)){
   $src=update_unzip($zip);
   if($src!==''&&update_copy_tree($src,$root)) $ok=true;
  }
