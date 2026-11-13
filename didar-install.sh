@@ -11,6 +11,8 @@ ADMIN_PASS=""
 ADMIN_NAME="Admin"
 CONFIRM_WIPE=0
 MEDIA_MODE="unknown"
+ICE_RELAY=0
+LK_IPFLAG=""
 
 mkdir -p /var/log
 touch "$LOG"
@@ -168,7 +170,7 @@ APPDIR="$(realpath "$APPDIR")"
 [ -f "$APPDIR/didar-renew.sh" ] || fail "didar-renew.sh not found"
 [ -f "$APPDIR/didar-ssl.sh" ] || fail "didar-ssl.sh not found"
 
-echo "Didar 1.1.0 installer 20261113-db"
+echo "Didar 1.1.0 installer 20261113-nat"
 
 [[ "$APPDIR" != *" "* ]] || fail "Application path cannot contain spaces"
 
@@ -457,11 +459,21 @@ else
     echo "WARNING: public IP unknown; LiveKit will STUN-discover."
 fi
 
+LK_IPFLAG=""
+ICE_RELAY=0
+if ok_pub "$PUB"; then
+    LK_IPFLAG=" --node-ip ${PUB}"
+fi
+if [ "$MEDIA_MODE" = "nat" ]; then
+    ICE_RELAY=1
+fi
+
 echo "Public IP: ${PUB:-unknown}"
 echo "Private IP: ${PRIV:-unknown}"
 echo "Media mode: ${MEDIA_MODE}"
 echo "LiveKit use_external_ip: ${LK_EXT}"
 echo "LiveKit node_ip: ${PUB:-none}"
+echo "ICE relay: ${ICE_RELAY}"
 
 step "6. Configuring UFW"
 
@@ -698,14 +710,14 @@ EOF
 chown root:livekit /etc/livekit.yaml
 chmod 640 /etc/livekit.yaml
 
-cat > /etc/systemd/system/livekit.service <<'EOF'
+cat > /etc/systemd/system/livekit.service <<EOF
 [Unit]
 Description=LiveKit
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/livekit-server --config /etc/livekit.yaml
+ExecStart=/usr/local/bin/livekit-server --config /etc/livekit.yaml${LK_IPFLAG}
 User=livekit
 Group=livekit
 Restart=always
@@ -746,6 +758,7 @@ export DIDAR_DBPASS="$DBPASS"
 export DIDAR_TURNSEC="$TURNSEC"
 export DIDAR_LKKEY="$LKKEY"
 export DIDAR_LKSEC="$LKSEC"
+export DIDAR_ICE_RELAY="$ICE_RELAY"
 
 step "11. Creating a dedicated PHP-FPM pool"
 
@@ -832,7 +845,7 @@ $C['seed'] = [
     'default_lang' => 'fa',
     'pass_policy' => 'low',
     'quality' => 'mid',
-    'ice_relay' => '0'
+    'ice_relay' => getenv('DIDAR_ICE_RELAY') === '1' ? '1' : '0'
 ];
 
 $content = "<?php\n\$C=" . var_export($C, true) . ";\n";
@@ -911,7 +924,7 @@ $settings = [
     'turn_secret' => getenv('DIDAR_TURNSEC'),
     'turn_user' => '',
     'turn_pass' => '',
-    'ice_relay' => '0',
+    'ice_relay' => getenv('DIDAR_ICE_RELAY') === '1' ? '1' : '0',
     'quality' => 'mid',
     'link_mode' => 'sfu',
     'lk_url' => 'wss://' . getenv('DIDAR_DOMAIN'),

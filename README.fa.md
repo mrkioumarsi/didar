@@ -25,7 +25,7 @@ cd didar-1.1.0
 sudo bash didar-install.sh --domain meet.example.com --email you@example.com --admin-user admin --admin-pass 'your-password' --confirm-wipe
 ```
 
-دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-db` باشد. اگر این خط نیست، دانلود قدیمی است؛ `didar.tar.gz` و پوشه `didar-1.1.0` را پاک کنید و wget را دوباره بزنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد.
+دامنه، ایمیل، نام کاربری و رمز را عوض کنید. اولین خط نصب باید `Didar 1.1.0 installer 20261113-nat` باشد. اگر این خط نیست، دانلود قدیمی است؛ `didar.tar.gz` و پوشه `didar-1.1.0` را پاک کنید و wget را دوباره بزنید. نصب‌کننده Nginx، PHP، MariaDB، Coturn، LiveKit، گواهی HTTPS و پورت‌های رسانه را می‌گذارد و حساب مدیر را می‌سازد.
 
 سپس `https://meet.example.com/` را باز کنید و وارد شوید. در تنظیمات تعداد کم یا تعداد زیاد را انتخاب کنید. آدرس‌ها از قبل پر شده است.
 

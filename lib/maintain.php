@@ -284,9 +284,24 @@ function didar_fix_livekit(){
  }
  $n=didar_yaml_rtc($n,'advertise_internal_ip','false');
  $n=didar_yaml_rtc($n,'use_ice_lite','false');
- if(!is_string($n)||$n===$t) return;
- @file_put_contents($f,$n);
- if(didar_fn('exec')) exec('systemctl restart livekit >/dev/null 2>&1');
+ $changed=is_string($n)&&$n!==$t;
+ if($changed) @file_put_contents($f,$n);
+ if($ip!==''&&preg_match('/^[0-9.]+$/',$ip)){
+  $dir='/etc/systemd/system/livekit.service.d';
+  if(!is_dir($dir)) @mkdir($dir,0755,true);
+  $unit="[Service]\nExecStart=\nExecStart=/usr/local/bin/livekit-server --config /etc/livekit.yaml --node-ip ".$ip."\n";
+  $cur=is_file($dir.'/node-ip.conf')?(string)@file_get_contents($dir.'/node-ip.conf'):'';
+  if($cur!==$unit){
+   @file_put_contents($dir.'/node-ip.conf',$unit);
+   $changed=true;
+   if(didar_fn('exec')) exec('systemctl daemon-reload >/dev/null 2>&1');
+  }
+  $mode=is_file('/etc/didar/media-mode')?trim((string)@file_get_contents('/etc/didar/media-mode')):'';
+  if($mode==='nat'&&function_exists('q')){
+   try{q("UPDATE settings SET v='1' WHERE k='ice_relay'",[]);}catch(Throwable $e){}
+  }
+ }
+ if($changed&&didar_fn('exec')) exec('systemctl restart livekit >/dev/null 2>&1');
 }
 function nginx_hide(){
  didar_sudoers();
