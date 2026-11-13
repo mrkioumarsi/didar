@@ -1,1 +1,4 @@
-*.sh text eol=lf
+assets/cmaps/** binary
+assets/standard_fonts/** binary
+assets/pdf.min.js binary
+assets/pdf.worker.min.js binary
